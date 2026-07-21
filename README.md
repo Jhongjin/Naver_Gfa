@@ -7,16 +7,17 @@
 - 상세 설계: [docs/DESIGN.md](docs/DESIGN.md)
 - 파트너 문의(약관/한도): [docs/naver-partner-inquiry.md](docs/naver-partner-inquiry.md)
 
-## 상태 (Phase 1 골격)
+## 상태 (Phase 1)
 
 | 구성 | 상태 |
 |---|---|
-| DB 스키마 (PostgreSQL + RLS) | ✅ 구현 |
-| 네이버 인증(OAuth2 토큰 매니저) | ✅ 구현 |
-| Collector — 관리계정 트리로 광고계정 수집 | ✅ 구현 (응답 필드명은 실데이터로 확정 필요) |
-| Collector — 리포트 수집 | ⛔ **stub** (네이버 리포트 API 스펙 미확인) |
-| Broker API — 키 인증·스코핑·계정/리포트 서빙 | ✅ 골격 구현 |
-| 키 발급 CLI | ✅ 구현 |
+| 네이버 인증(OAuth2 토큰 매니저) | ✅ 라이브 검증 |
+| Collector — 관리계정 트리로 광고계정 수집 | ✅ 라이브 검증 (광고계정 2110개) |
+| DB (Neon PostgreSQL + RLS) | ✅ 라이브 (스키마+계정 적재 완료) |
+| Broker API — 키 인증·스코핑·서빙 | ✅ 라이브 검증 (스코프 격리 확인) |
+| 키 발급 CLI | ✅ 라이브 검증 |
+| 계정명 보강 (GET /adAccounts/{no}) | ✅ 구현 (배정분/--all 전체) |
+| Collector — 리포트 수집 | ⛔ **stub** (네이버 리포트 API 스펙 확인 중) |
 | 광고주 대시보드 UI | 🔜 2단계 |
 
 > ⚠️ **광고주 대상 오픈은 네이버 약관 회신(제9조 9항 해석) 이후.** 내부 구축은 회신과 무관하게 진행 가능.

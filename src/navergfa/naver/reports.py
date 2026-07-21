@@ -1,12 +1,13 @@
-"""리포트/통계 수집.
+"""성과(리포트) 수집 — 네이버 성과 API.
 
-⛔ STUB — 네이버 리포트/통계 API 스펙 미확인.
-가이드의 stat/report 문서(또는 파트너 회신)로 아래를 확정한 뒤 구현한다:
-  - 엔드포인트 경로/메서드, 요청 파라미터(기간·집계단위·지표)
-  - 응답 필드명(impressions/clicks/cost/conversions/…)
-  - 소급(백필) 가능 기간, 비동기 리포트 여부(요청→폴링 다운로드 방식일 수 있음)
-
-호출 형태는 계정 API와 동일: GET /{v}/... 에 AccessManagerAccountNo 헤더 지정.
+스펙(2026-07-21 가이드 확인):
+  GET /adAccounts/{adAccountNo}/performance/past/{aggregationType}
+    aggregationType = campaigns | adSets | creatives
+  파라미터: startDate, endDate (yyyy-MM-dd, 최대 31일), timeUnit=daily|hourly, limit(<=1000), next
+  백필: 2년 전 ~ 전일 (전일은 당일 02:00 이후). 동기 응답.
+  헤더: AccessManagerAccountNo (선택)
+  응답 필드: impCount, clickCount, convCount, convSales, sales, vplayCount,
+            campaignNo/adSetNo/creativeNo, targetDate, hour, updatedAt, next
 """
 from __future__ import annotations
 
@@ -15,15 +16,76 @@ from typing import Any
 
 from .client import NaverAdApiClient
 
+_LIST_KEYS = ("data", "contents", "elements", "list", "records", "performances", "results")
 
-async def fetch_report(
+
+def unwrap(data: Any) -> tuple[list[dict], str | None]:
+    """응답에서 (레코드 리스트, next 토큰) 추출. 래퍼 구조가 불확실해 방어적으로 처리."""
+    if isinstance(data, list):
+        return data, None
+    if isinstance(data, dict):
+        nxt = data.get("next") or None
+        for k in _LIST_KEYS:
+            v = data.get(k)
+            if isinstance(v, list):
+                return v, nxt
+    return [], None
+
+
+async def fetch_campaign_performance(
     client: NaverAdApiClient,
     ad_account_no: int,
-    date_from: date,
-    date_to: date,
-    manager_account_no: int,
-) -> list[dict[str, Any]]:
-    raise NotImplementedError(
-        "리포트 API 스펙 미확인. 가이드의 stat/report 문서 확인 후 구현하세요. "
-        "확정 시 report_facts 스키마(impressions/clicks/cost/conversions/conv_value)에 매핑."
-    )
+    start_date: date,
+    end_date: date,
+    manager_account_no: int | None = None,
+    time_unit: str = "daily",
+) -> list[dict]:
+    """캠페인 단위 과거 성과(일별). next 토큰 페이징 처리."""
+    path = f"/adAccounts/{ad_account_no}/performance/past/campaigns"
+    base = {
+        "startDate": start_date.isoformat(),
+        "endDate": end_date.isoformat(),
+        "timeUnit": time_unit,
+        "limit": 1000,
+    }
+    params = dict(base)
+    out: list[dict] = []
+    for _ in range(10_000):  # 안전 상한
+        data = await client.get(
+            path, access_manager_account_no=manager_account_no, params=params
+        )
+        batch, nxt = unwrap(data)
+        out.extend(batch)
+        if not nxt:
+            break
+        params = {**base, "next": nxt}
+    return out
+
+
+def _num(row: dict, *keys: str) -> Any:
+    for k in keys:
+        v = row.get(k)
+        if v is not None:
+            return v
+    return 0
+
+
+def to_fact(row: dict, ad_account_no: int, advertiser_id: int) -> dict:
+    """성과 레코드 → report_facts 행.
+
+    주의: cost 를 `sales` 에 매핑했으나, sales 가 '광고비'인지 '매출'인지 실데이터로 확인 필요.
+    (전환매출은 convSales 로 분리)
+    """
+    return {
+        "advertiser_id": advertiser_id,
+        "naver_account_no": ad_account_no,
+        "stat_date": row.get("targetDate"),
+        "campaign_id": row.get("campaignNo") or 0,
+        "ad_group_id": row.get("adSetNo"),
+        "ad_id": row.get("creativeNo") or 0,
+        "impressions": int(_num(row, "impCount")),
+        "clicks": int(_num(row, "clickCount")),
+        "cost": _num(row, "sales"),
+        "conversions": int(_num(row, "convCount")),
+        "conv_value": _num(row, "convSales"),
+    }
