@@ -1,0 +1,57 @@
+name: collector
+
+# Collector 배치를 GitHub Actions cron 으로 실행한다 (Vercel 서버리스는 장시간 배치에 부적합).
+# 필요한 Actions Secrets (repo Settings > Secrets and variables > Actions):
+#   DATABASE_URL, NAVER_CLIENT_ID, NAVER_CLIENT_SECRET, NAVER_REFRESH_TOKEN
+# (선택) Variables: NAVER_MANAGER_ACCOUNT_NO (미설정 시 4213)
+
+on:
+  schedule:
+    # 매일 05:00 KST (= 20:00 UTC) — 광고계정 트리 동기화
+    - cron: "0 20 * * *"
+  workflow_dispatch: {} # 수동 실행 허용
+
+concurrency:
+  group: collector
+  cancel-in-progress: false
+
+jobs:
+  sync-accounts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Sync ad-account tree
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          NAVER_REFRESH_TOKEN: ${{ secrets.NAVER_REFRESH_TOKEN }}
+          NAVER_MANAGER_ACCOUNT_NO: ${{ vars.NAVER_MANAGER_ACCOUNT_NO || '4213' }}
+        run: python -m src.navergfa.collector.run
+
+  # 리포트 수집 잡 — naver/reports.py 스펙 확정 후 활성화한다.
+  # sync-reports:
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 30
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-python@v5
+  #       with: { python-version: "3.12", cache: pip }
+  #     - run: pip install -r requirements.txt
+  #     - name: Sync reports
+  #       env:
+  #         DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  #         NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+  #         NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+  #         NAVER_REFRESH_TOKEN: ${{ secrets.NAVER_REFRESH_TOKEN }}
+  #       run: python -m src.navergfa.collector.run --reports

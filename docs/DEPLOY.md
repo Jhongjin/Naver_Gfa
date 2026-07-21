@@ -40,14 +40,23 @@ Collector    → GitHub Actions cron / 작은 서버  (Vercel 아님)
   > NAVER_* 는 Broker 자체에는 당장 필요 없지만(수집은 Collector 담당), 동일 환경을 쓰면 편하다.
 - 배포 후 확인: `https://<프로젝트>.vercel.app/health` → `{"status":"ok"}`
 
-## 3. Collector — Vercel 밖
+## 3. Collector — Vercel 밖 (GitHub Actions cron)
 
-서버리스는 장시간 배치에 부적합하다. 두 가지 방식:
-- **GitHub Actions cron** (권장, 무료): 스케줄로 `python -m src.navergfa.collector.run` 실행.
-  DB/네이버 시크릿은 Actions Secrets 로 주입.
-- **작은 상시 서버**(VM/컨테이너): APScheduler/cron 으로 주기 실행.
+워크플로: [`.github/workflows/collector.yml`](../.github/workflows/collector.yml)
+- 매일 05:00 KST 자동 실행 + `Actions` 탭에서 수동 실행(workflow_dispatch) 가능.
+- 현재는 **광고계정 트리 동기화**만 수행(리포트 잡은 reports.py 스펙 확정 후 주석 해제).
+
+**필요한 Actions Secrets** (repo Settings > Secrets and variables > Actions > New repository secret):
+```
+DATABASE_URL          = postgresql+psycopg://...neon.tech/neondb?sslmode=require
+NAVER_CLIENT_ID       = <개발자센터>
+NAVER_CLIENT_SECRET   = <개발자센터>
+NAVER_REFRESH_TOKEN   = <tools.get_refresh_token 으로 발급>
+```
+(선택) Variables 탭: `NAVER_MANAGER_ACCOUNT_NO` = 4213 (미설정 시 기본 4213)
 
 > 계정 트리 동기화는 호출 1회라 가벼우나, 리포트 수집은 계정 수만큼 반복이라 Actions/서버가 맞다.
+> 대안: 작은 상시 서버(VM/컨테이너)에서 APScheduler/cron 으로 주기 실행.
 
 ---
 
