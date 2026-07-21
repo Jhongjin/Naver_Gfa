@@ -69,7 +69,7 @@ HTML_PAGE = r"""<!doctype html>
 
       <h3 style="font-size:13px;margin-top:16px">계정 검색·배정</h3>
       <div class="row">
-        <input id="q" placeholder="계정명 또는 번호 검색">
+        <input id="q" placeholder="계정명 또는 번호 검색" onkeydown="if(event.key==='Enter')searchAccounts()">
         <select id="assignedFilter">
           <option value="">전체</option>
           <option value="no">미배정만</option>
