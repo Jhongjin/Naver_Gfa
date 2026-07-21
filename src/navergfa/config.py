@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     # API 키 해시용 서버 pepper
     api_key_pepper: str = "change-me"
 
+    # 운영자 콘솔 인증 토큰(관리자 비밀번호). 비어있으면 콘솔 전체 차단.
+    admin_token: str = ""
+    # 전체 이름 보강 버튼이 트리거할 GitHub Actions
+    github_repo: str = "Jhongjin/Naver_Gfa"
+    github_dispatch_token: str = ""  # actions:write PAT (선택)
+
     @property
     def api_prefix(self) -> str:
         return f"{self.naver_api_base}/{self.naver_api_version}"

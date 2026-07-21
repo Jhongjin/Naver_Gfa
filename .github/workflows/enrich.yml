@@ -1,0 +1,32 @@
+name: enrich
+
+# 전체 광고계정 이름 보강 (GET /adAccounts/{no} × N). 수동 실행 또는 콘솔 버튼 트리거.
+# 호출 수가 많으니(최대 2110) 네이버 호출 한도 확인 후 사용 권장.
+
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: enrich
+  cancel-in-progress: false
+
+jobs:
+  enrich-names:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Enrich all account names
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          NAVER_REFRESH_TOKEN: ${{ secrets.NAVER_REFRESH_TOKEN }}
+          NAVER_MANAGER_ACCOUNT_NO: ${{ vars.NAVER_MANAGER_ACCOUNT_NO || '4213' }}
+        run: python -m src.navergfa.tools.enrich_names --all --sleep 0.1
