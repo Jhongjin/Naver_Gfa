@@ -16,7 +16,7 @@ from typing import Any
 
 from .client import NaverAdApiClient
 
-_LIST_KEYS = ("data", "contents", "elements", "list", "records", "performances", "results")
+_LIST_KEYS = ("rows", "data", "contents", "elements", "list", "records", "performances", "results")
 
 
 def unwrap(data: Any) -> tuple[list[dict], str | None]:
