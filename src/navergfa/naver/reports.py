@@ -73,8 +73,8 @@ def _num(row: dict, *keys: str) -> Any:
 def to_fact(row: dict, ad_account_no: int, advertiser_id: int) -> dict:
     """성과 레코드 → report_facts 행.
 
-    주의: cost 를 `sales` 에 매핑했으나, sales 가 '광고비'인지 '매출'인지 실데이터로 확인 필요.
-    (전환매출은 convSales 로 분리)
+    필드 확정(2026-07-21 실데이터): sales=광고비(CPC/CPM 기준 검증), convSales=전환매출.
+    응답 래퍼는 {"rows": [...], "next": ...}. 캠페인 단위는 adSetNo/creativeNo=null → ad_id=0.
     """
     return {
         "advertiser_id": advertiser_id,
