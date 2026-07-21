@@ -8,9 +8,9 @@ HTML_PAGE = r"""<!doctype html>
 <title>GFA 운영자 콘솔</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Fira+Sans:wght@300;400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400..500&family=Noto+Sans+KR:wght@400;500;700&display=swap">
 <style>
-  /* 디자인 시스템: 블루 데이터 + 앰버 하이라이트 / Fira Sans · Fira Code */
+  /* 디자인 시스템: 블루 데이터 + 앰버 하이라이트 / Geist · Geist Mono · Noto Sans KR */
   :root{
     --bg:#F8FAFC; --panel:#FFFFFF; --panel2:#F1F5FB;
     --ink:#0F172A; --ink-brand:#1E3A8A; --muted:#64748B; --faint:#94A3B8; --line:#E3E9F3;
@@ -41,12 +41,12 @@ HTML_PAGE = r"""<!doctype html>
   *{box-sizing:border-box}
   html,body{margin:0;height:100%}
   body{
-    font-family:'Fira Sans','Pretendard',-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Gothic Neo',system-ui,sans-serif;
+    font-family:'Geist','Noto Sans KR',-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',system-ui,sans-serif;
     background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased;
     font-size:14px; line-height:1.55;
   }
   .mono,.tnum{font-variant-numeric:tabular-nums}
-  .mono{font-family:'Fira Code',ui-monospace,'SF Mono',Consolas,monospace}
+  .mono,code,pre{font-family:'Geist Mono',ui-monospace,'SF Mono',Consolas,monospace}
   ::-webkit-scrollbar{width:9px;height:9px}
   ::-webkit-scrollbar-thumb{background:var(--thumb);border-radius:9px}
   ::-webkit-scrollbar-thumb:hover{background:var(--muted)}
@@ -241,7 +241,7 @@ HTML_PAGE = r"""<!doctype html>
   .gnote.warn{border-color:var(--amber);background:var(--amber-weak)}
   .gnote.danger{border-color:var(--red);background:var(--red-weak)}
   .gpre{background:var(--chrome);color:#dbe7f6;border-radius:10px;padding:13px 15px;overflow-x:auto;
-    font-size:12.5px;line-height:1.65;margin:10px 0;font-family:ui-monospace,'SF Mono',Consolas,monospace;white-space:pre}
+    font-size:12.5px;line-height:1.65;margin:10px 0;font-family:'Geist Mono',ui-monospace,'SF Mono',Consolas,monospace;white-space:pre}
   .gkbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;
     padding:1px 7px;font-size:12.5px;font-weight:600;white-space:nowrap}
   .gtbl{width:100%;border-collapse:collapse;font-size:13.5px;margin:10px 0}
