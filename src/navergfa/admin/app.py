@@ -13,7 +13,7 @@ from typing import Any
 
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import text
 
 from ..broker.security import generate_api_key
@@ -27,6 +27,11 @@ app = FastAPI(title="Naver GFA Admin", version="0.1.0")
 def require_admin(x_admin_token: str = Header(default="")) -> None:
     if not settings.admin_token or x_admin_token != settings.admin_token:
         raise HTTPException(status_code=401, detail="unauthorized")
+
+
+@app.get("/")
+def root() -> RedirectResponse:
+    return RedirectResponse(url="/admin")
 
 
 @app.get("/admin", response_class=HTMLResponse)
