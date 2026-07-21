@@ -6,30 +6,53 @@ HTML_PAGE = r"""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GFA 운영자 콘솔</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Fira+Sans:wght@300;400;500;600;700&display=swap">
 <style>
+  /* 디자인 시스템: 블루 데이터 + 앰버 하이라이트 / Fira Sans · Fira Code */
   :root{
-    --bg:#eef1f7; --panel:#ffffff; --panel2:#f7f9fc;
-    --ink:#0f1b2d; --muted:#647089; --faint:#9aa6bb; --line:#e6eaf2;
-    --chrome:#0b1a30; --chrome2:#0e213c; --chrome-ink:#e9f0fb; --chrome-dim:#8ba6cc;
-    --accent:#2f6bff; --accent-weak:#e9f0ff; --accent-ink:#1b52e0;
-    --green:#0f9d58; --green-weak:#e4f6ec; --red:#d6392f; --red-weak:#fdeceb;
-    --amber:#b26a00; --amber-weak:#fbf0dd;
+    --bg:#F8FAFC; --panel:#FFFFFF; --panel2:#F1F5FB;
+    --ink:#0F172A; --ink-brand:#1E3A8A; --muted:#64748B; --faint:#94A3B8; --line:#E3E9F3;
+    --chrome:#0B1220; --chrome2:#121F38; --chrome-ink:#E8EFFA; --chrome-dim:#8FA6C6;
+    --accent:#1E40AF; --accent-ink:#1E3A8A; --accent-weak:#EAF1FE; --accent-2:#3B82F6;
+    --amber:#D97706; --amber-weak:#FDF1E1;
+    --green:#059669; --green-weak:#E3F5EE;
+    --red:#DC2626; --red-weak:#FDECEC;
+    --ring:#1E40AF; --thumb:#C7D3E6;
     --r:14px; --r-sm:9px;
-    --sh:0 1px 2px rgba(15,27,45,.04), 0 6px 20px rgba(15,27,45,.06);
-    --sh-lg:0 10px 34px rgba(15,27,45,.12);
+    --sh:0 1px 2px rgba(15,23,42,.04), 0 6px 20px rgba(15,23,42,.06);
+    --sh-lg:0 10px 34px rgba(15,23,42,.14);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0B1220; --panel:#111C2E; --panel2:#0E1829;
+      --ink:#E6EDF8; --ink-brand:#BFD4FF; --muted:#93A4BE; --faint:#6E819C; --line:#1E2C44;
+      --chrome:#070E1A; --chrome2:#0E1A2E;
+      --accent:#3B82F6; --accent-ink:#60A5FA; --accent-weak:#16233C; --accent-2:#60A5FA;
+      --amber:#F59E0B; --amber-weak:#33260F;
+      --green:#34D399; --green-weak:#123128;
+      --red:#F87171; --red-weak:#37191A;
+      --ring:#60A5FA; --thumb:#2A3B57;
+      --sh:0 1px 2px rgba(0,0,0,.3), 0 8px 26px rgba(0,0,0,.35);
+      --sh-lg:0 12px 36px rgba(0,0,0,.5);
+    }
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%}
   body{
-    font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Gothic Neo',system-ui,sans-serif;
+    font-family:'Fira Sans','Pretendard',-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Gothic Neo',system-ui,sans-serif;
     background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased;
     font-size:14px; line-height:1.55;
   }
-  .mono{font-family:ui-monospace,'SF Mono','Cascadia Code',Consolas,monospace}
-  .tnum{font-variant-numeric:tabular-nums}
+  .mono,.tnum{font-variant-numeric:tabular-nums}
+  .mono{font-family:'Fira Code',ui-monospace,'SF Mono',Consolas,monospace}
   ::-webkit-scrollbar{width:9px;height:9px}
-  ::-webkit-scrollbar-thumb{background:#c7cede;border-radius:9px}
-  ::-webkit-scrollbar-thumb:hover{background:#aeb8cd}
+  ::-webkit-scrollbar-thumb{background:var(--thumb);border-radius:9px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+  /* 접근성: 키보드 포커스 상시 가시화 */
+  a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,
+  summary:focus-visible,.adv-item:focus-visible{outline:2px solid var(--ring);outline-offset:2px;border-radius:8px}
 
   /* ── top bar ── */
   .topbar{
@@ -39,30 +62,30 @@ HTML_PAGE = r"""<!doctype html>
     border-bottom:1px solid rgba(255,255,255,.06);
   }
   .brand{display:flex; align-items:center; gap:11px; margin-right:auto; min-width:0}
-  .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),#5b8cff);
-    display:grid;place-items:center;font-size:17px;box-shadow:0 4px 14px rgba(47,107,255,.4);flex:none}
+  .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    display:grid;place-items:center;font-size:17px;box-shadow:0 4px 14px color-mix(in srgb,var(--accent) 38%,transparent);flex:none}
   .brand .t{font-weight:750;font-size:15px;letter-spacing:-.01em;line-height:1.1}
   .brand .s{font-size:11px;color:var(--chrome-dim);letter-spacing:.02em}
   .auth{display:flex;align-items:center;gap:9px}
   .auth input{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);color:#fff;
     padding:8px 11px;border-radius:9px;font-size:13px;width:230px;outline:none}
   .auth input::placeholder{color:#8ba6cc}
-  .auth input:focus{border-color:var(--accent);background:rgba(47,107,255,.14)}
+  .auth input:focus{border-color:var(--accent-2);background:rgba(59,130,246,.16)}
   .status{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--chrome-dim);white-space:nowrap}
-  .dot{width:8px;height:8px;border-radius:50%;background:#5a6b86;box-shadow:0 0 0 0 rgba(0,0,0,0)}
-  .dot.on{background:var(--green);box-shadow:0 0 0 4px rgba(15,157,88,.18)}
-  .dot.err{background:var(--red);box-shadow:0 0 0 4px rgba(214,57,47,.18)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--faint);box-shadow:0 0 0 0 rgba(0,0,0,0)}
+  .dot.on{background:var(--green);box-shadow:0 0 0 4px color-mix(in srgb,var(--green) 22%,transparent)}
+  .dot.err{background:var(--red);box-shadow:0 0 0 4px color-mix(in srgb,var(--red) 22%,transparent)}
 
   /* ── buttons ── */
   .btn{cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);
     border-radius:9px;padding:8px 13px;font-size:13px;font-weight:600;font-family:inherit;
     transition:.14s ease;display:inline-flex;align-items:center;gap:6px}
-  .btn:hover{border-color:#cfd6e4;background:var(--panel2)}
+  .btn:hover{border-color:var(--thumb);background:var(--panel2)}
   .btn:active{transform:translateY(1px)}
-  .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 3px 10px rgba(47,107,255,.28)}
+  .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 3px 10px color-mix(in srgb,var(--accent) 26%,transparent)}
   .btn-primary:hover{background:var(--accent-ink);border-color:var(--accent-ink)}
-  .btn-danger{color:var(--red);border-color:#f0c9c6;background:#fff}
-  .btn-danger:hover{background:var(--red-weak);border-color:#e6a9a4}
+  .btn-danger{color:var(--red);border-color:color-mix(in srgb,var(--red) 32%,var(--line));background:var(--panel)}
+  .btn-danger:hover{background:var(--red-weak);border-color:color-mix(in srgb,var(--red) 45%,transparent)}
   .btn-sm{padding:5px 10px;font-size:12px}
   .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
@@ -80,14 +103,14 @@ HTML_PAGE = r"""<!doctype html>
   .toolbar input,.toolbar select{padding:8px 10px;border:1px solid var(--line);border-radius:9px;
     font-size:13px;font-family:inherit;background:var(--panel2);outline:none;color:var(--ink)}
   .toolbar input{flex:1;min-width:0}
-  .toolbar input:focus,.toolbar select:focus{border-color:var(--accent);background:#fff}
+  .toolbar input:focus,.toolbar select:focus{border-color:var(--accent);background:var(--panel)}
   .toolbar select{flex:0 0 auto}
 
   .advscroll{max-height:56vh;overflow-y:auto;padding:2px 8px 8px}
   .adv-item{display:flex;align-items:center;justify-content:space-between;gap:8px;
     padding:9px 11px;border-radius:10px;cursor:pointer;border:1px solid transparent;transition:.12s}
   .adv-item:hover{background:var(--panel2)}
-  .adv-item.active{background:var(--accent-weak);border-color:#cfddff}
+  .adv-item.active{background:var(--accent-weak);border-color:color-mix(in srgb,var(--accent) 30%,transparent)}
   .adv-item .nm{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .adv-item.active .nm{color:var(--accent-ink)}
   .adv-item .meta{font-size:11.5px;color:var(--faint);white-space:nowrap;flex:none}
@@ -105,7 +128,7 @@ HTML_PAGE = r"""<!doctype html>
   .workspace{min-width:0}
   .empty-state{background:var(--panel);border:1px dashed var(--line);border-radius:var(--r);
     padding:70px 24px;text-align:center;color:var(--faint)}
-  .empty-state .big{font-size:34px;margin-bottom:10px}
+  .empty-state .big{margin-bottom:12px;color:var(--faint);display:flex;justify-content:center}
   .empty-state p{margin:0;font-size:14px}
 
   .dhead{padding:20px 22px;border-bottom:1px solid var(--line)}
@@ -144,7 +167,7 @@ HTML_PAGE = r"""<!doctype html>
   .searchbar input,.searchbar select{padding:9px 11px;border:1px solid var(--line);border-radius:9px;
     font-size:13px;font-family:inherit;background:var(--panel2);outline:none;color:var(--ink)}
   .searchbar input{flex:1;min-width:0}
-  .searchbar input:focus,.searchbar select:focus{border-color:var(--accent);background:#fff}
+  .searchbar input:focus,.searchbar select:focus{border-color:var(--accent);background:var(--panel)}
 
   .keyreveal{margin-top:12px;border:1px solid #cfddff;background:var(--accent-weak);border-radius:12px;padding:13px 15px}
   .keyreveal .cap{font-size:12px;color:var(--accent-ink);font-weight:700;display:flex;align-items:center;gap:6px;margin-bottom:8px}
@@ -186,7 +209,7 @@ HTML_PAGE = r"""<!doctype html>
   .seg{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:2px}
   .seg button{border:0;background:transparent;padding:5px 12px;font-size:12px;font-weight:600;border-radius:7px;
     cursor:pointer;color:var(--muted);font-family:inherit;transition:.12s}
-  .seg button.on{background:#fff;color:var(--ink);box-shadow:var(--sh)}
+  .seg button.on{background:var(--panel);color:var(--ink);box-shadow:var(--sh)}
   #advChart svg{display:block}
 
   /* ── 가이드 ── */
@@ -238,7 +261,7 @@ HTML_PAGE = r"""<!doctype html>
 <body>
 <header class="topbar">
   <div class="brand">
-    <div class="logo">🔑</div>
+    <div class="logo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></svg></div>
     <div><div class="t">GFA 운영자 콘솔</div><div class="s">네이버 GFA 리포팅 중계 · 광고주 &amp; 키 관리</div></div>
   </div>
   <nav class="nav">
@@ -284,7 +307,7 @@ HTML_PAGE = r"""<!doctype html>
   <!-- 워크스페이스 -->
   <main class="workspace">
     <div id="empty" class="empty-state">
-      <div class="big">🗂️</div>
+      <div class="big"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></div>
       <p>왼쪽에서 광고주를 선택하거나 새로 추가하세요.</p>
     </div>
 
@@ -713,7 +736,7 @@ function renderBars(series, elId, h, showAxis){
     const drawn=d.calls>0?Math.max((d.calls/max)*(h-pad*2),3):0;
     const last=i===series.length-1;
     return `<rect x="${x.toFixed(1)}" y="${(h-pad-drawn).toFixed(1)}" width="${bw.toFixed(1)}" height="${drawn.toFixed(1)}" rx="3"
-      fill="${last?'var(--accent)':'#a9c2ff'}"><title>${d.d} · ${d.calls}회</title></rect>`;
+      fill="${last?'var(--amber)':'var(--accent-2)'}"><title>${d.d} · ${d.calls}회</title></rect>`;
   }).join("");
   const base=`<line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" stroke="var(--line)" stroke-width="1"/>`;
   const axis=showAxis?
