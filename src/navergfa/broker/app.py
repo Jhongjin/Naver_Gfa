@@ -89,6 +89,15 @@ def _freshness() -> str | None:
         return val.isoformat() if val else None
 
 
+@app.get("/")
+def root() -> dict[str, Any]:
+    return {
+        "service": "naver-gfa broker",
+        "endpoints": ["/health", "/v1/accounts", "/v1/reports"],
+        "admin": "/admin",
+    }
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
