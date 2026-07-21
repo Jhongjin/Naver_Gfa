@@ -112,6 +112,20 @@ def search_accounts(
     return {"data": [dict(r) for r in rows]}
 
 
+@router.get("/admin/api/advertisers/{advertiser_id}/accounts")
+def advertiser_accounts(advertiser_id: int, _: None = Depends(require_admin)) -> dict:
+    """해당 광고주에 배정된 계정 전체 (앞 100개 제한 없이)."""
+    with engine.begin() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT naver_account_no, account_name, manager_account_name "
+                "FROM naver_accounts WHERE advertiser_id = :aid ORDER BY naver_account_no"
+            ),
+            {"aid": advertiser_id},
+        ).mappings().all()
+    return {"data": [dict(r) for r in rows]}
+
+
 @router.post("/admin/api/advertisers/{advertiser_id}/accounts")
 def assign_accounts(advertiser_id: int, body: dict, _: None = Depends(require_admin)) -> dict:
     nos = body.get("account_nos") or []

@@ -319,10 +319,9 @@ async function selectAdvertiser(id){
   renderAdvertisers(); loadAssigned(); loadKeys();
 }
 async function loadAssigned(){
-  const {data}=await api("GET","/admin/api/accounts?assigned=yes&size=100&q=");
-  const mine=data.filter(a=>a.advertiser_id===CUR.id);
-  document.getElementById("tileAccounts").textContent=mine.length;
-  document.getElementById("assignedBody").innerHTML = mine.map(a=>
+  const {data}=await api("GET",`/admin/api/advertisers/${CUR.id}/accounts`);
+  document.getElementById("tileAccounts").textContent=data.length;
+  document.getElementById("assignedBody").innerHTML = data.map(a=>
     `<tr><td class="num">${a.naver_account_no}</td>
      <td class="name">${esc(a.account_name)||'<span style="color:var(--faint)">(미보강)</span>'}</td>
      <td style="color:var(--muted)">${esc(a.manager_account_name)||'—'}</td>
