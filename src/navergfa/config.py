@@ -3,6 +3,16 @@ from __future__ import annotations
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# 사내 보안 프록시가 TLS 를 재서명하는 환경(회사망)에서는 Python 이 OS(Windows) 인증서
+# 저장소를 사용하도록 한다. 브라우저가 신뢰하는 사내 루트 CA 를 그대로 활용 → SSL 검증 통과.
+# truststore 미설치/미지원 환경에서는 조용히 무시(클라우드는 certifi 로 충분).
+try:  # noqa: SIM105
+    import truststore
+
+    truststore.inject_into_ssl()
+except Exception:
+    pass
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(

@@ -4,3 +4,5 @@ httpx>=0.27
 sqlalchemy>=2.0
 psycopg[binary]>=3.2
 pydantic-settings>=2.5
+truststore>=0.9
+
