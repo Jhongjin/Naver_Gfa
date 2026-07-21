@@ -13,11 +13,13 @@ CREATE TABLE IF NOT EXISTS advertisers (
 -- Collector가 관리계정 트리에서 발견한 계정은 advertiser_id=NULL(미할당)로 먼저 등록되고,
 -- 운영자가 광고주에 배정한다.
 CREATE TABLE IF NOT EXISTS naver_accounts (
-  naver_account_no  BIGINT PRIMARY KEY,
-  advertiser_id     BIGINT REFERENCES advertisers(id),   -- NULL = 미할당(발견됨)
-  account_name      TEXT,
-  discovered_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+  naver_account_no      BIGINT PRIMARY KEY,
+  advertiser_id         BIGINT REFERENCES advertisers(id),   -- NULL = 미할당(발견됨)
+  account_name          TEXT,                                -- GET /adAccounts/{no} 로 별도 보강
+  manager_account_no    BIGINT,                              -- 직속 관리계정(팀) 번호
+  manager_account_name  TEXT,                                -- 직속 관리계정(팀) 이름
+  discovered_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS ix_naver_accounts_adv ON naver_accounts(advertiser_id);
 

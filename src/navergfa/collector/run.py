@@ -30,14 +30,22 @@ async def sync_accounts() -> list[dict]:
             conn.execute(
                 text(
                     """
-                    INSERT INTO naver_accounts (naver_account_no, account_name, updated_at)
-                    VALUES (:no, :name, now())
+                    INSERT INTO naver_accounts
+                           (naver_account_no, account_name,
+                            manager_account_no, manager_account_name, updated_at)
+                    VALUES (:no, :name, :mno, :mname, now())
                     ON CONFLICT (naver_account_no) DO UPDATE
-                       SET account_name = EXCLUDED.account_name,
-                           updated_at   = now()
+                       SET manager_account_no   = EXCLUDED.manager_account_no,
+                           manager_account_name = EXCLUDED.manager_account_name,
+                           updated_at           = now()
                     """
                 ),
-                {"no": acc["naver_account_no"], "name": acc.get("account_name")},
+                {
+                    "no": acc["naver_account_no"],
+                    "name": acc.get("account_name"),
+                    "mno": acc.get("manager_account_no"),
+                    "mname": acc.get("manager_account_name"),
+                },
             )
         conn.execute(
             text(
