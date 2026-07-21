@@ -25,9 +25,16 @@ HTML_PAGE = r"""<!doctype html>
   th { color: #667; font-weight: 600; }
   .row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
   .row input, .row select { padding: 6px 8px; border: 1px solid #cfd6e0; border-radius: 6px; flex: 1; min-width: 120px; }
-  .adv-item { padding: 8px 10px; border-radius: 8px; cursor: pointer; display: flex; justify-content: space-between; }
+  .adv-item { padding: 8px 10px; border-radius: 8px; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; }
   .adv-item:hover { background: #f0f3f8; }
   .adv-item.active { background: #e7f0ff; font-weight: 600; }
+  .advscroll { max-height: 58vh; overflow-y: auto; margin-top: 8px; padding-right: 2px; border-top: 1px solid #eef1f4; }
+  .advscroll::-webkit-scrollbar { width: 8px; }
+  .advscroll::-webkit-scrollbar-thumb { background: #cfd6e0; border-radius: 8px; }
+  .toolbar { display: flex; gap: 6px; margin-top: 8px; }
+  .toolbar input { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid #cfd6e0; border-radius: 6px; }
+  .toolbar select { flex: 0 0 auto; padding: 6px 6px; border: 1px solid #cfd6e0; border-radius: 6px; background: #fff; }
+  .count { font-weight: 400; font-size: 12px; color: #889; }
   .muted { color: #889; font-size: 12px; }
   .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #eef1f4; }
   .pill.revoked { background: #fdecea; color: #c0392b; }
@@ -45,8 +52,17 @@ HTML_PAGE = r"""<!doctype html>
 <main>
   <div>
     <div class="card">
-      <h2>광고주</h2>
-      <div id="advList"></div>
+      <h2>광고주 <span id="advCount" class="count"></span></h2>
+      <div class="toolbar">
+        <input id="advSearch" placeholder="광고주 검색" oninput="renderAdvertisers()">
+        <select id="advSort" onchange="renderAdvertisers()">
+          <option value="name">이름순</option>
+          <option value="accounts">계정 많은순</option>
+          <option value="keys">키 많은순</option>
+          <option value="recent">최근 추가순</option>
+        </select>
+      </div>
+      <div id="advList" class="advscroll"></div>
       <div class="row" style="margin-top:10px">
         <input id="newAdv" placeholder="새 광고주명">
         <button class="primary" onclick="createAdvertiser()">추가</button>
@@ -119,11 +135,29 @@ async function saveToken() {
 async function loadAdvertisers() {
   const { data } = await api("GET", "/admin/api/advertisers");
   ADVS = data;
+  renderAdvertisers();
+}
+function renderAdvertisers() {
+  const term = (document.getElementById("advSearch").value || "").trim().toLowerCase();
+  const sort = document.getElementById("advSort").value;
+  let list = ADVS.slice();
+  if (term) list = list.filter(a => (a.name || "").toLowerCase().includes(term));
+  const byName = (a, b) => (a.name || "").localeCompare(b.name || "", "ko");
+  const cmp = {
+    name: byName,
+    accounts: (a, b) => (b.accounts - a.accounts) || byName(a, b),
+    keys: (a, b) => (b.active_keys - a.active_keys) || byName(a, b),
+    recent: (a, b) => b.id - a.id,
+  }[sort] || byName;
+  list.sort(cmp);
+  document.getElementById("advCount").textContent =
+    `총 ${ADVS.length}개` + (term ? ` · ${list.length} 검색됨` : "");
   const el = document.getElementById("advList");
-  el.innerHTML = data.map(a =>
+  el.innerHTML = list.map(a =>
     `<div class="adv-item ${CUR&&CUR.id===a.id?'active':''}" onclick="selectAdvertiser(${a.id})">
        <span>${esc(a.name)}</span>
-       <span class="muted">계정 ${a.accounts} · 키 ${a.active_keys}</span></div>`).join("");
+       <span class="muted">계정 ${a.accounts} · 키 ${a.active_keys}</span></div>`).join("")
+    || `<div class="muted" style="padding:10px">검색 결과 없음</div>`;
 }
 async function createAdvertiser() {
   const name = document.getElementById("newAdv").value.trim();
