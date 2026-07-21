@@ -93,6 +93,7 @@ HTML_PAGE = r"""<!doctype html>
 <script>
 let TOKEN = sessionStorage.getItem("adminToken") || "";
 let CUR = null; // {id, name}
+let ADVS = [];  // 광고주 목록 캐시
 document.getElementById("token").value = TOKEN;
 
 function setStatus(msg, ok) {
@@ -117,9 +118,10 @@ async function saveToken() {
 }
 async function loadAdvertisers() {
   const { data } = await api("GET", "/admin/api/advertisers");
+  ADVS = data;
   const el = document.getElementById("advList");
   el.innerHTML = data.map(a =>
-    `<div class="adv-item ${CUR&&CUR.id===a.id?'active':''}" onclick="selectAdvertiser(${a.id}, ${JSON.stringify(a.name)})">
+    `<div class="adv-item ${CUR&&CUR.id===a.id?'active':''}" onclick="selectAdvertiser(${a.id})">
        <span>${esc(a.name)}</span>
        <span class="muted">계정 ${a.accounts} · 키 ${a.active_keys}</span></div>`).join("");
 }
@@ -130,7 +132,9 @@ async function createAdvertiser() {
   document.getElementById("newAdv").value = "";
   loadAdvertisers();
 }
-async function selectAdvertiser(id, name) {
+async function selectAdvertiser(id) {
+  const adv = ADVS.find(a => a.id === id);
+  const name = adv ? adv.name : String(id);
   CUR = { id, name };
   document.getElementById("empty").style.display = "none";
   document.getElementById("detail").style.display = "block";
