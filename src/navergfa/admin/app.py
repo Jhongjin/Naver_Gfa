@@ -201,6 +201,86 @@ def revoke_key(key_id: int, _: None = Depends(require_admin)) -> dict:
     return {"ok": True}
 
 
+# ── 사용 현황 (api_audit_logs 집계) ──
+@router.get("/admin/api/usage/summary")
+def usage_summary(_: None = Depends(require_admin)) -> dict:
+    with engine.begin() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT
+                  count(*) FILTER (WHERE ts >= now() - interval '1 day')   AS calls_1d,
+                  count(*) FILTER (WHERE ts >= now() - interval '7 days')   AS calls_7d,
+                  count(*) FILTER (WHERE ts >= now() - interval '30 days')  AS calls_30d,
+                  count(DISTINCT advertiser_id) FILTER (WHERE ts >= now() - interval '7 days') AS active_7d,
+                  count(*) FILTER (WHERE ts >= now() - interval '7 days' AND status_code >= 400) AS errors_7d
+                FROM api_audit_logs
+                """
+            )
+        ).mappings().first()
+    return dict(row) if row else {}
+
+
+@router.get("/admin/api/usage/by-advertiser")
+def usage_by_advertiser(days: int = 30, _: None = Depends(require_admin)) -> dict:
+    with engine.begin() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT a.name, count(*) AS calls, max(l.ts) AS last_call,
+                       count(*) FILTER (WHERE l.status_code >= 400) AS errors
+                  FROM api_audit_logs l JOIN advertisers a ON a.id = l.advertiser_id
+                 WHERE l.ts >= now() - make_interval(days => :d)
+                 GROUP BY a.id, a.name
+                 ORDER BY calls DESC LIMIT 100
+                """
+            ),
+            {"d": days},
+        ).mappings().all()
+    return {"data": [dict(r) for r in rows]}
+
+
+@router.get("/admin/api/usage/recent")
+def usage_recent(limit: int = 40, _: None = Depends(require_admin)) -> dict:
+    with engine.begin() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT l.ts, a.name AS advertiser, l.endpoint, l.status_code
+                  FROM api_audit_logs l LEFT JOIN advertisers a ON a.id = l.advertiser_id
+                 ORDER BY l.ts DESC LIMIT :lim
+                """
+            ),
+            {"lim": min(limit, 200)},
+        ).mappings().all()
+    return {"data": [dict(r) for r in rows]}
+
+
+@router.get("/admin/api/usage/timeseries")
+def usage_timeseries(days: int = 14, _: None = Depends(require_admin)) -> dict:
+    with engine.begin() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT to_char(g.d, 'YYYY-MM-DD') AS d, coalesce(c.calls, 0) AS calls
+                  FROM (
+                    SELECT ((now() AT TIME ZONE 'Asia/Seoul')::date - offs) AS d
+                    FROM generate_series(0, :d - 1) AS offs
+                  ) g
+                  LEFT JOIN (
+                    SELECT (ts AT TIME ZONE 'Asia/Seoul')::date AS dd, count(*) AS calls
+                    FROM api_audit_logs
+                    WHERE ts >= now() - make_interval(days => :d)
+                    GROUP BY dd
+                  ) c ON c.dd = g.d
+                 ORDER BY g.d
+                """
+            ),
+            {"d": days},
+        ).mappings().all()
+    return {"data": [dict(r) for r in rows]}
+
+
 # ── 전체 이름 보강 (GitHub Actions 트리거) ──
 @router.post("/admin/api/enrich")
 def trigger_enrich(_: None = Depends(require_admin)) -> dict:

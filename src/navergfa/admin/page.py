@@ -161,6 +161,29 @@ HTML_PAGE = r"""<!doctype html>
   .toast.err::before{background:var(--red)}
   .toast.warn::before{background:var(--amber)}
 
+  /* ── nav tabs ── */
+  .nav{display:flex;gap:3px;background:rgba(255,255,255,.06);padding:4px;border-radius:11px}
+  .nav .tab{background:transparent;border:0;color:var(--chrome-dim);font-weight:650;font-size:13px;
+    padding:7px 15px;border-radius:8px;cursor:pointer;font-family:inherit;transition:.14s}
+  .nav .tab:hover{color:#fff}
+  .nav .tab.active{background:rgba(255,255,255,.13);color:#fff}
+
+  /* ── usage dashboard ── */
+  .uwrap{max-width:1240px;margin:0 auto;padding:20px 22px 60px;display:flex;flex-direction:column;gap:18px}
+  .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+  @media (max-width:760px){.kpis{grid-template-columns:repeat(2,1fr)}}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--sh)}
+  .kpi .k{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+  .kpi .v{font-size:30px;font-weight:800;margin-top:4px;letter-spacing:-.02em}
+  .kpi.accent .v{color:var(--accent)}
+  .chartcard{padding:18px}
+  .chart svg{display:block}
+  .ugrid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media (max-width:860px){.ugrid{grid-template-columns:1fr}}
+  .ugrid .panel{overflow:hidden}
+  .ugrid .sec-h{margin-bottom:0;padding:16px 18px 12px;border-bottom:1px solid var(--line)}
+  .logscroll{max-height:360px;overflow-y:auto}
+
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -170,6 +193,10 @@ HTML_PAGE = r"""<!doctype html>
     <div class="logo">🔑</div>
     <div><div class="t">GFA 운영자 콘솔</div><div class="s">네이버 GFA 리포팅 중계 · 광고주 &amp; 키 관리</div></div>
   </div>
+  <nav class="nav">
+    <button class="tab active" data-view="manage" onclick="switchView('manage')">관리</button>
+    <button class="tab" data-view="usage" onclick="switchView('usage')">사용 현황</button>
+  </nav>
   <div class="auth">
     <input id="token" type="password" placeholder="관리자 토큰" autocomplete="off">
     <button class="btn btn-primary" onclick="saveToken()">접속</button>
@@ -177,6 +204,7 @@ HTML_PAGE = r"""<!doctype html>
   </div>
 </header>
 
+<div id="view-manage">
 <div class="shell">
   <!-- 사이드바 -->
   <aside class="panel sidebar">
@@ -257,6 +285,36 @@ HTML_PAGE = r"""<!doctype html>
     </div>
   </main>
 </div>
+</div><!-- /view-manage -->
+
+<section id="view-usage" hidden>
+  <div class="uwrap">
+    <div class="kpis">
+      <div class="kpi accent"><div class="k">오늘 호출</div><div class="v tnum" id="k1">–</div></div>
+      <div class="kpi"><div class="k">최근 7일 호출</div><div class="v tnum" id="k7">–</div></div>
+      <div class="kpi"><div class="k">활성 광고주 · 7일</div><div class="v tnum" id="kadv">–</div></div>
+      <div class="kpi"><div class="k">에러율 · 7일</div><div class="v tnum" id="kerr">–</div></div>
+    </div>
+    <div class="panel chartcard">
+      <div class="sec-h"><h3>일별 호출 · 최근 14일</h3></div>
+      <div id="chart" class="chart"></div>
+    </div>
+    <div class="ugrid">
+      <div class="panel">
+        <div class="sec-h"><h3>광고주별 사용 현황 · 30일</h3></div>
+        <div class="logscroll"><div class="tblwrap" style="border:0"><table>
+          <thead><tr><th>광고주</th><th>호출</th><th>에러</th><th>마지막</th></tr></thead>
+          <tbody id="byAdvBody"></tbody></table></div></div>
+      </div>
+      <div class="panel">
+        <div class="sec-h"><h3>최근 호출 로그</h3></div>
+        <div class="logscroll"><div class="tblwrap" style="border:0"><table>
+          <thead><tr><th>시간</th><th>광고주</th><th>엔드포인트</th><th>상태</th></tr></thead>
+          <tbody id="recentBody"></tbody></table></div></div>
+      </div>
+    </div>
+  </div>
+</section>
 
 <div id="toast" class="toast"></div>
 
@@ -375,6 +433,63 @@ async function triggerEnrich(){
   catch(e){ toast("실패: "+e.message,"err"); }
 }
 function esc(s){ return s?String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])):""; }
+function fmt(iso){ return iso? String(iso).replace('T',' ').slice(5,16):'—'; }
+
+/* ── 뷰 전환 & 사용 현황 ── */
+function switchView(v){
+  document.querySelectorAll(".nav .tab").forEach(t=>t.classList.toggle("active", t.dataset.view===v));
+  document.getElementById("view-manage").hidden = v!=="manage";
+  document.getElementById("view-usage").hidden  = v!=="usage";
+  if(v==="usage" && TOKEN) loadUsage();
+}
+async function loadUsage(){
+  try{
+    const s=await api("GET","/admin/api/usage/summary");
+    document.getElementById("k1").textContent=(s.calls_1d??0).toLocaleString();
+    document.getElementById("k7").textContent=(s.calls_7d??0).toLocaleString();
+    document.getElementById("kadv").textContent=(s.active_7d??0).toLocaleString();
+    document.getElementById("kerr").textContent=(s.calls_7d? Math.round(s.errors_7d/s.calls_7d*100):0)+"%";
+
+    const ts=await api("GET","/admin/api/usage/timeseries?days=14");
+    renderBars(ts.data||[]);
+
+    const ba=await api("GET","/admin/api/usage/by-advertiser?days=30");
+    document.getElementById("byAdvBody").innerHTML=(ba.data||[]).map(r=>
+      `<tr><td class="name">${esc(r.name)}</td>
+       <td class="num">${(r.calls||0).toLocaleString()}</td>
+       <td class="num" style="color:${r.errors?'var(--red)':'var(--muted)'}">${r.errors||0}</td>
+       <td style="color:var(--muted)">${fmt(r.last_call)}</td></tr>`).join("")
+      || `<tr><td colspan="4" class="cell-empty">아직 호출 기록이 없습니다</td></tr>`;
+
+    const rc=await api("GET","/admin/api/usage/recent?limit=40");
+    document.getElementById("recentBody").innerHTML=(rc.data||[]).map(r=>{
+      const err=r.status_code>=400;
+      return `<tr><td class="mono" style="color:var(--muted);font-size:12px">${fmt(r.ts)}</td>
+       <td class="name">${r.advertiser?esc(r.advertiser):'—'}</td>
+       <td class="mono" style="font-size:12px">${esc(r.endpoint)}</td>
+       <td><span class="pill ${err?'revoked':'active'}" style="${err?'color:var(--red);background:var(--red-weak)':''}">${r.status_code}</span></td></tr>`;
+    }).join("") || `<tr><td colspan="4" class="cell-empty">아직 호출 기록이 없습니다</td></tr>`;
+  }catch(e){ toast("사용 현황 로드 실패","err"); }
+}
+function renderBars(series){
+  const h=150, pad=16, n=Math.max(series.length,1);
+  const w=Math.max(n*30, 280);
+  const max=Math.max(1,...series.map(d=>d.calls));
+  const slot=(w-pad*2)/n, bw=Math.min(22, slot-8);
+  const bars=series.map((d,i)=>{
+    const x=pad+i*slot+(slot-bw)/2;
+    const bh=(d.calls/max)*(h-pad*2);
+    const last=i===series.length-1;
+    const drawn=d.calls>0?Math.max(bh,3):0;
+    return `<rect x="${x.toFixed(1)}" y="${(h-pad-drawn).toFixed(1)}" width="${bw.toFixed(1)}" height="${drawn.toFixed(1)}" rx="3"
+      fill="${last?'var(--accent)':'#a9c2ff'}"><title>${d.d} · ${d.calls}회</title></rect>`;
+  }).join("");
+  const base=`<line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" stroke="var(--line)" stroke-width="1"/>`;
+  document.getElementById("chart").innerHTML=
+    `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="max-width:100%">${base}${bars}</svg>
+     <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--faint);margin-top:6px">
+       <span>${series[0]?series[0].d.slice(5):''}</span><span>최대 ${max.toLocaleString()}회/일</span><span>${series.length?series[series.length-1].d.slice(5):''}</span></div>`;
+}
 
 if(TOKEN) saveToken();
 </script>
