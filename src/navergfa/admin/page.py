@@ -5,231 +5,379 @@ HTML_PAGE = r"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Naver GFA 운영자 콘솔</title>
+<title>GFA 운영자 콘솔</title>
 <style>
-  * { box-sizing: border-box; }
-  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; background: #f6f7f9; color: #1a1a1a; }
-  header { background: #0b1f3a; color: #fff; padding: 12px 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-  header h1 { font-size: 16px; margin: 0; margin-right: auto; }
-  header input { padding: 6px 8px; border-radius: 6px; border: 1px solid #33507a; background: #fff; }
-  button { cursor: pointer; border: 1px solid #cfd6e0; background: #fff; border-radius: 6px; padding: 6px 10px; font-size: 13px; }
-  button.primary { background: #1b57d6; color: #fff; border-color: #1b57d6; }
-  button.danger { color: #c0392b; border-color: #e6b0aa; }
-  button:disabled { opacity: .5; cursor: not-allowed; }
-  main { display: grid; grid-template-columns: 300px 1fr; gap: 16px; padding: 16px; }
-  @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
-  .card { background: #fff; border: 1px solid #e5e8ec; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
-  .card h2 { font-size: 14px; margin: 0 0 10px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eef1f4; }
-  th { color: #667; font-weight: 600; }
-  .row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
-  .row input, .row select { padding: 6px 8px; border: 1px solid #cfd6e0; border-radius: 6px; flex: 1; min-width: 120px; }
-  .adv-item { padding: 8px 10px; border-radius: 8px; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; }
-  .adv-item:hover { background: #f0f3f8; }
-  .adv-item.active { background: #e7f0ff; font-weight: 600; }
-  .advscroll { max-height: 58vh; overflow-y: auto; margin-top: 8px; padding-right: 2px; border-top: 1px solid #eef1f4; }
-  .advscroll::-webkit-scrollbar { width: 8px; }
-  .advscroll::-webkit-scrollbar-thumb { background: #cfd6e0; border-radius: 8px; }
-  .toolbar { display: flex; gap: 6px; margin-top: 8px; }
-  .toolbar input { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid #cfd6e0; border-radius: 6px; }
-  .toolbar select { flex: 0 0 auto; padding: 6px 6px; border: 1px solid #cfd6e0; border-radius: 6px; background: #fff; }
-  .count { font-weight: 400; font-size: 12px; color: #889; }
-  .muted { color: #889; font-size: 12px; }
-  .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #eef1f4; }
-  .pill.revoked { background: #fdecea; color: #c0392b; }
-  .keybox { background: #0b1f3a; color: #7CFC98; padding: 10px; border-radius: 8px; font-family: monospace; word-break: break-all; margin-top: 8px; }
-  #status { font-size: 12px; }
+  :root{
+    --bg:#eef1f7; --panel:#ffffff; --panel2:#f7f9fc;
+    --ink:#0f1b2d; --muted:#647089; --faint:#9aa6bb; --line:#e6eaf2;
+    --chrome:#0b1a30; --chrome2:#0e213c; --chrome-ink:#e9f0fb; --chrome-dim:#8ba6cc;
+    --accent:#2f6bff; --accent-weak:#e9f0ff; --accent-ink:#1b52e0;
+    --green:#0f9d58; --green-weak:#e4f6ec; --red:#d6392f; --red-weak:#fdeceb;
+    --amber:#b26a00; --amber-weak:#fbf0dd;
+    --r:14px; --r-sm:9px;
+    --sh:0 1px 2px rgba(15,27,45,.04), 0 6px 20px rgba(15,27,45,.06);
+    --sh-lg:0 10px 34px rgba(15,27,45,.12);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Gothic Neo',system-ui,sans-serif;
+    background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased;
+    font-size:14px; line-height:1.55;
+  }
+  .mono{font-family:ui-monospace,'SF Mono','Cascadia Code',Consolas,monospace}
+  .tnum{font-variant-numeric:tabular-nums}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#c7cede;border-radius:9px}
+  ::-webkit-scrollbar-thumb:hover{background:#aeb8cd}
+
+  /* ── top bar ── */
+  .topbar{
+    position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:16px;
+    background:linear-gradient(180deg,var(--chrome2),var(--chrome));
+    color:var(--chrome-ink); padding:0 22px; height:60px;
+    border-bottom:1px solid rgba(255,255,255,.06);
+  }
+  .brand{display:flex; align-items:center; gap:11px; margin-right:auto; min-width:0}
+  .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),#5b8cff);
+    display:grid;place-items:center;font-size:17px;box-shadow:0 4px 14px rgba(47,107,255,.4);flex:none}
+  .brand .t{font-weight:750;font-size:15px;letter-spacing:-.01em;line-height:1.1}
+  .brand .s{font-size:11px;color:var(--chrome-dim);letter-spacing:.02em}
+  .auth{display:flex;align-items:center;gap:9px}
+  .auth input{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);color:#fff;
+    padding:8px 11px;border-radius:9px;font-size:13px;width:230px;outline:none}
+  .auth input::placeholder{color:#8ba6cc}
+  .auth input:focus{border-color:var(--accent);background:rgba(47,107,255,.14)}
+  .status{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--chrome-dim);white-space:nowrap}
+  .dot{width:8px;height:8px;border-radius:50%;background:#5a6b86;box-shadow:0 0 0 0 rgba(0,0,0,0)}
+  .dot.on{background:var(--green);box-shadow:0 0 0 4px rgba(15,157,88,.18)}
+  .dot.err{background:var(--red);box-shadow:0 0 0 4px rgba(214,57,47,.18)}
+
+  /* ── buttons ── */
+  .btn{cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);
+    border-radius:9px;padding:8px 13px;font-size:13px;font-weight:600;font-family:inherit;
+    transition:.14s ease;display:inline-flex;align-items:center;gap:6px}
+  .btn:hover{border-color:#cfd6e4;background:var(--panel2)}
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 3px 10px rgba(47,107,255,.28)}
+  .btn-primary:hover{background:var(--accent-ink);border-color:var(--accent-ink)}
+  .btn-danger{color:var(--red);border-color:#f0c9c6;background:#fff}
+  .btn-danger:hover{background:var(--red-weak);border-color:#e6a9a4}
+  .btn-sm{padding:5px 10px;font-size:12px}
+  .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  /* ── app shell ── */
+  .shell{display:grid;grid-template-columns:322px 1fr;gap:18px;max-width:1240px;margin:0 auto;padding:20px 22px 60px}
+  @media (max-width:860px){.shell{grid-template-columns:1fr}}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh)}
+  .sidebar{align-self:start;position:sticky;top:80px;overflow:hidden}
+  .side-head{display:flex;align-items:baseline;justify-content:space-between;padding:16px 16px 0}
+  .side-head h2{margin:0;font-size:13px;font-weight:750;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+  .count{font-size:12px;color:var(--faint);font-weight:500}
+
+  .toolbar{display:flex;gap:7px;padding:12px 16px 10px}
+  .toolbar input,.toolbar select{padding:8px 10px;border:1px solid var(--line);border-radius:9px;
+    font-size:13px;font-family:inherit;background:var(--panel2);outline:none;color:var(--ink)}
+  .toolbar input{flex:1;min-width:0}
+  .toolbar input:focus,.toolbar select:focus{border-color:var(--accent);background:#fff}
+  .toolbar select{flex:0 0 auto}
+
+  .advscroll{max-height:56vh;overflow-y:auto;padding:2px 8px 8px}
+  .adv-item{display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:9px 11px;border-radius:10px;cursor:pointer;border:1px solid transparent;transition:.12s}
+  .adv-item:hover{background:var(--panel2)}
+  .adv-item.active{background:var(--accent-weak);border-color:#cfddff}
+  .adv-item .nm{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .adv-item.active .nm{color:var(--accent-ink)}
+  .adv-item .meta{font-size:11.5px;color:var(--faint);white-space:nowrap;flex:none}
+  .adv-empty{padding:18px;text-align:center;color:var(--faint);font-size:13px}
+
+  .side-foot{border-top:1px solid var(--line);padding:12px 16px}
+  .newrow{display:flex;gap:7px}
+  .newrow input{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px;font-family:inherit;outline:none}
+  .newrow input:focus{border-color:var(--accent)}
+  .maint{margin-top:12px}
+  .maint .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:700;margin-bottom:7px}
+  .maint .hint{font-size:11.5px;color:var(--faint);margin-top:6px;line-height:1.4}
+
+  /* ── workspace ── */
+  .workspace{min-width:0}
+  .empty-state{background:var(--panel);border:1px dashed var(--line);border-radius:var(--r);
+    padding:70px 24px;text-align:center;color:var(--faint)}
+  .empty-state .big{font-size:34px;margin-bottom:10px}
+  .empty-state p{margin:0;font-size:14px}
+
+  .dhead{padding:20px 22px;border-bottom:1px solid var(--line)}
+  .dhead .ey{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);font-weight:700}
+  .dhead h1{margin:4px 0 0;font-size:23px;font-weight:800;letter-spacing:-.01em;word-break:break-all}
+  .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:16px 22px 0}
+  .tile{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:13px 15px}
+  .tile .k{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+  .tile .v{font-size:25px;font-weight:800;margin-top:3px;letter-spacing:-.01em}
+  .tile.a .v{color:var(--accent)}
+  .tile.g .v{color:var(--green)}
+
+  .sec{padding:20px 22px}
+  .sec+.sec{border-top:1px solid var(--line)}
+  .sec-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+  .sec-h h3{margin:0;font-size:13px;font-weight:750;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+
+  .tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  thead th{text-align:left;padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--faint);font-weight:700;background:var(--panel2);border-bottom:1px solid var(--line)}
+  tbody td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr:hover{background:var(--panel2)}
+  td.num{font-variant-numeric:tabular-nums;color:var(--muted)}
+  td.name{font-weight:600}
+  .cell-empty{padding:16px 14px;color:var(--faint);text-align:center}
+
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;
+    padding:3px 9px;border-radius:999px;letter-spacing:.02em}
+  .pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.9}
+  .pill.active{background:var(--green-weak);color:var(--green)}
+  .pill.revoked{background:#eef1f5;color:var(--faint)}
+
+  .searchbar{display:flex;gap:8px;margin-bottom:12px}
+  .searchbar input,.searchbar select{padding:9px 11px;border:1px solid var(--line);border-radius:9px;
+    font-size:13px;font-family:inherit;background:var(--panel2);outline:none;color:var(--ink)}
+  .searchbar input{flex:1;min-width:0}
+  .searchbar input:focus,.searchbar select:focus{border-color:var(--accent);background:#fff}
+
+  .keyreveal{margin-top:12px;border:1px solid #cfddff;background:var(--accent-weak);border-radius:12px;padding:13px 15px}
+  .keyreveal .cap{font-size:12px;color:var(--accent-ink);font-weight:700;display:flex;align-items:center;gap:6px;margin-bottom:8px}
+  .keyreveal .kv{display:flex;gap:9px;align-items:center}
+  .keyreveal code{flex:1;min-width:0;background:#0b1a30;color:#a9ffd8;padding:10px 12px;border-radius:9px;
+    font-size:12.5px;overflow-x:auto;white-space:nowrap}
+
+  /* ── toast ── */
+  .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);opacity:0;pointer-events:none;
+    background:var(--chrome);color:#fff;padding:11px 18px;border-radius:11px;font-size:13.5px;font-weight:600;
+    box-shadow:var(--sh-lg);z-index:50;transition:.24s ease;display:flex;align-items:center;gap:9px;max-width:90vw}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+  .toast::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--green)}
+  .toast.err::before{background:var(--red)}
+  .toast.warn::before{background:var(--amber)}
+
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
-<header>
-  <h1>🔑 Naver GFA 운영자 콘솔</h1>
-  <input id="token" type="password" placeholder="관리자 토큰(ADMIN_TOKEN)" size="28">
-  <button class="primary" onclick="saveToken()">접속</button>
-  <span id="status" class="muted">토큰을 입력하세요</span>
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">🔑</div>
+    <div><div class="t">GFA 운영자 콘솔</div><div class="s">네이버 GFA 리포팅 중계 · 광고주 &amp; 키 관리</div></div>
+  </div>
+  <div class="auth">
+    <input id="token" type="password" placeholder="관리자 토큰" autocomplete="off">
+    <button class="btn btn-primary" onclick="saveToken()">접속</button>
+    <span class="status"><span id="dot" class="dot"></span><span id="status">토큰 입력</span></span>
+  </div>
 </header>
-<main>
-  <div>
-    <div class="card">
-      <h2>광고주 <span id="advCount" class="count"></span></h2>
-      <div class="toolbar">
-        <input id="advSearch" placeholder="광고주 검색" oninput="renderAdvertisers()">
-        <select id="advSort" onchange="renderAdvertisers()">
-          <option value="name">이름순</option>
-          <option value="accounts">계정 많은순</option>
-          <option value="keys">키 많은순</option>
-          <option value="recent">최근 추가순</option>
-        </select>
+
+<div class="shell">
+  <!-- 사이드바 -->
+  <aside class="panel sidebar">
+    <div class="side-head"><h2>광고주</h2><span id="advCount" class="count"></span></div>
+    <div class="toolbar">
+      <input id="advSearch" placeholder="광고주 검색" oninput="renderAdvertisers()">
+      <select id="advSort" onchange="renderAdvertisers()">
+        <option value="name">이름순</option>
+        <option value="accounts">계정 많은순</option>
+        <option value="keys">키 많은순</option>
+        <option value="recent">최근 추가순</option>
+      </select>
+    </div>
+    <div id="advList" class="advscroll"></div>
+    <div class="side-foot">
+      <div class="newrow">
+        <input id="newAdv" placeholder="새 광고주명" onkeydown="if(event.key==='Enter')createAdvertiser()">
+        <button class="btn btn-primary" onclick="createAdvertiser()">추가</button>
       </div>
-      <div id="advList" class="advscroll"></div>
-      <div class="row" style="margin-top:10px">
-        <input id="newAdv" placeholder="새 광고주명">
-        <button class="primary" onclick="createAdvertiser()">추가</button>
+      <div class="maint">
+        <div class="lbl">유지보수</div>
+        <button class="btn" onclick="triggerEnrich()">전체 계정 이름 보강</button>
+        <div class="hint">네이버에서 계정명을 일괄로 채웁니다(수 분).</div>
       </div>
     </div>
-    <div class="card">
-      <h2>유지보수</h2>
-      <button onclick="triggerEnrich()">전체 계정 이름 보강</button>
-      <div class="muted" style="margin-top:6px">2110개 계정명을 채웁니다(수 분, GitHub Actions).</div>
+  </aside>
+
+  <!-- 워크스페이스 -->
+  <main class="workspace">
+    <div id="empty" class="empty-state">
+      <div class="big">🗂️</div>
+      <p>왼쪽에서 광고주를 선택하거나 새로 추가하세요.</p>
     </div>
-  </div>
 
-  <div>
-    <div id="detail" class="card" style="display:none">
-      <h2 id="advTitle"></h2>
-
-      <h3 style="font-size:13px">배정된 광고계정</h3>
-      <table><thead><tr><th>번호</th><th>이름</th><th>팀</th><th></th></tr></thead>
-        <tbody id="assignedBody"></tbody></table>
-
-      <h3 style="font-size:13px;margin-top:16px">계정 검색·배정</h3>
-      <div class="row">
-        <input id="q" placeholder="계정명 또는 번호 검색" onkeydown="if(event.key==='Enter')searchAccounts()">
-        <select id="assignedFilter">
-          <option value="">전체</option>
-          <option value="no">미배정만</option>
-          <option value="yes">배정됨만</option>
-        </select>
-        <button onclick="searchAccounts()">검색</button>
+    <div id="detail" class="panel" style="display:none">
+      <div class="dhead">
+        <div class="ey">광고주</div>
+        <h1 id="advTitle"></h1>
       </div>
-      <table><thead><tr><th>번호</th><th>이름</th><th>현재 배정</th><th></th></tr></thead>
-        <tbody id="searchBody"></tbody></table>
+      <div class="tiles">
+        <div class="tile a"><div class="k">배정 계정</div><div class="v tnum" id="tileAccounts">0</div></div>
+        <div class="tile g"><div class="k">활성 키</div><div class="v tnum" id="tileKeys">0</div></div>
+      </div>
 
-      <h3 style="font-size:13px;margin-top:16px">API 키</h3>
-      <button class="primary" onclick="issueKey()">새 키 발급</button>
-      <div id="newKey"></div>
-      <table><thead><tr><th>Prefix</th><th>상태</th><th>마지막 사용</th><th></th></tr></thead>
-        <tbody id="keysBody"></tbody></table>
+      <div class="sec">
+        <div class="sec-h"><h3>배정된 광고계정</h3></div>
+        <div class="tblwrap"><table>
+          <thead><tr><th>번호</th><th>이름</th><th>팀</th><th></th></tr></thead>
+          <tbody id="assignedBody"></tbody>
+        </table></div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-h"><h3>계정 검색 · 배정</h3></div>
+        <div class="searchbar">
+          <input id="q" placeholder="계정명 또는 번호 검색" onkeydown="if(event.key==='Enter')searchAccounts()">
+          <select id="assignedFilter">
+            <option value="">전체</option>
+            <option value="no">미배정만</option>
+            <option value="yes">배정됨만</option>
+          </select>
+          <button class="btn" onclick="searchAccounts()">검색</button>
+        </div>
+        <div class="tblwrap"><table>
+          <thead><tr><th>번호</th><th>이름</th><th>현재 배정</th><th></th></tr></thead>
+          <tbody id="searchBody"><tr><td colspan="4" class="cell-empty">검색어를 입력하세요</td></tr></tbody>
+        </table></div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-h"><h3>API 키</h3><button class="btn btn-primary btn-sm" onclick="issueKey()">+ 새 키 발급</button></div>
+        <div id="newKey"></div>
+        <div class="tblwrap"><table>
+          <thead><tr><th>Prefix</th><th>상태</th><th>마지막 사용</th><th></th></tr></thead>
+          <tbody id="keysBody"></tbody>
+        </table></div>
+      </div>
     </div>
-    <div id="empty" class="card muted">왼쪽에서 광고주를 선택하거나 새로 추가하세요.</div>
-  </div>
-</main>
+  </main>
+</div>
+
+<div id="toast" class="toast"></div>
 
 <script>
 let TOKEN = sessionStorage.getItem("adminToken") || "";
-let CUR = null; // {id, name}
-let ADVS = [];  // 광고주 목록 캐시
+let CUR = null;
+let ADVS = [];
 document.getElementById("token").value = TOKEN;
 
-function setStatus(msg, ok) {
-  const s = document.getElementById("status");
-  s.textContent = msg; s.style.color = ok ? "#7CFC98" : "#ffb4a2";
-}
-async function api(method, path, body) {
+function toast(msg, type){ const t=document.getElementById("toast"); t.textContent=msg;
+  t.className="toast show"+(type?" "+type:""); clearTimeout(t._t); t._t=setTimeout(()=>t.className="toast",2600); }
+function setStatus(msg, state){ document.getElementById("status").textContent=msg;
+  document.getElementById("dot").className="dot"+(state?" "+state:""); }
+
+async function api(method, path, body){
   const res = await fetch(path, {
-    method,
-    headers: { "X-Admin-Token": TOKEN, "Content-Type": "application/json" },
+    method, headers:{ "X-Admin-Token":TOKEN, "Content-Type":"application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (res.status === 401) { setStatus("인증 실패 — 토큰 확인", false); throw new Error("401"); }
-  if (!res.ok) { throw new Error(await res.text()); }
+  if(res.status===401){ setStatus("인증 실패", "err"); throw new Error("401"); }
+  if(!res.ok){ throw new Error(await res.text()); }
   return res.json();
 }
-async function saveToken() {
-  TOKEN = document.getElementById("token").value.trim();
+async function saveToken(){
+  TOKEN=document.getElementById("token").value.trim();
   sessionStorage.setItem("adminToken", TOKEN);
-  try { await api("GET", "/admin/api/me"); setStatus("접속됨 ✓", true); loadAdvertisers(); }
-  catch { setStatus("인증 실패", false); }
+  try{ await api("GET","/admin/api/me"); setStatus("접속됨", "on"); loadAdvertisers(); }
+  catch{ setStatus("인증 실패", "err"); }
 }
-async function loadAdvertisers() {
-  const { data } = await api("GET", "/admin/api/advertisers");
-  ADVS = data;
-  renderAdvertisers();
-}
-function renderAdvertisers() {
-  const term = (document.getElementById("advSearch").value || "").trim().toLowerCase();
-  const sort = document.getElementById("advSort").value;
-  let list = ADVS.slice();
-  if (term) list = list.filter(a => (a.name || "").toLowerCase().includes(term));
-  const byName = (a, b) => (a.name || "").localeCompare(b.name || "", "ko");
-  const cmp = {
-    name: byName,
-    accounts: (a, b) => (b.accounts - a.accounts) || byName(a, b),
-    keys: (a, b) => (b.active_keys - a.active_keys) || byName(a, b),
-    recent: (a, b) => b.id - a.id,
-  }[sort] || byName;
-  list.sort(cmp);
-  document.getElementById("advCount").textContent =
-    `총 ${ADVS.length}개` + (term ? ` · ${list.length} 검색됨` : "");
-  const el = document.getElementById("advList");
-  el.innerHTML = list.map(a =>
-    `<div class="adv-item ${CUR&&CUR.id===a.id?'active':''}" onclick="selectAdvertiser(${a.id})">
-       <span>${esc(a.name)}</span>
-       <span class="muted">계정 ${a.accounts} · 키 ${a.active_keys}</span></div>`).join("")
-    || `<div class="muted" style="padding:10px">검색 결과 없음</div>`;
-}
-async function createAdvertiser() {
-  const name = document.getElementById("newAdv").value.trim();
-  if (!name) return;
-  await api("POST", "/admin/api/advertisers", { name });
-  document.getElementById("newAdv").value = "";
-  loadAdvertisers();
-}
-async function selectAdvertiser(id) {
-  const adv = ADVS.find(a => a.id === id);
-  const name = adv ? adv.name : String(id);
-  CUR = { id, name };
-  document.getElementById("empty").style.display = "none";
-  document.getElementById("detail").style.display = "block";
-  document.getElementById("advTitle").textContent = name;
-  document.getElementById("newKey").innerHTML = "";
-  loadAdvertisers(); loadAssigned(); loadKeys();
-}
-async function loadAssigned() {
-  const { data } = await api("GET", `/admin/api/accounts?assigned=yes&size=100&q=`);
-  const mine = data.filter(a => a.advertiser_id === CUR.id);
-  document.getElementById("assignedBody").innerHTML = mine.map(a =>
-    `<tr><td>${a.naver_account_no}</td><td>${esc(a.account_name)||'<span class=muted>(미보강)</span>'}</td>
-     <td class="muted">${esc(a.manager_account_name)||''}</td>
-     <td><button class="danger" onclick="unassign(${a.naver_account_no})">해제</button></td></tr>`).join("")
-     || `<tr><td colspan=4 class="muted">배정된 계정 없음</td></tr>`;
-}
-async function searchAccounts() {
-  const q = document.getElementById("q").value.trim();
-  const f = document.getElementById("assignedFilter").value;
-  const { data } = await api("GET", `/admin/api/accounts?q=${encodeURIComponent(q)}&assigned=${f}&size=30`);
-  document.getElementById("searchBody").innerHTML = data.map(a =>
-    `<tr><td>${a.naver_account_no}</td><td>${esc(a.account_name)||'<span class=muted>(미보강)</span>'}</td>
-     <td class="muted">${a.advertiser_name?esc(a.advertiser_name):'<span class=muted>미배정</span>'}</td>
-     <td><button class="primary" onclick="assign(${a.naver_account_no})">배정</button></td></tr>`).join("")
-     || `<tr><td colspan=4 class="muted">결과 없음</td></tr>`;
-}
-async function assign(no) {
-  await api("POST", `/admin/api/advertisers/${CUR.id}/accounts`, { account_nos: [no] });
-  loadAssigned(); searchAccounts(); loadAdvertisers();
-}
-async function unassign(no) {
-  await api("DELETE", `/admin/api/advertisers/${CUR.id}/accounts/${no}`);
-  loadAssigned(); loadAdvertisers();
-}
-async function loadKeys() {
-  const { data } = await api("GET", `/admin/api/advertisers/${CUR.id}/keys`);
-  document.getElementById("keysBody").innerHTML = data.map(k =>
-    `<tr><td>${k.key_prefix}</td>
-     <td><span class="pill ${k.status==='revoked'?'revoked':''}">${k.status}</span></td>
-     <td class="muted">${k.last_used_at?k.last_used_at.slice(0,10):'-'}</td>
-     <td>${k.status==='active'?`<button class="danger" onclick="revoke(${k.id})">폐기</button>`:''}</td></tr>`).join("")
-     || `<tr><td colspan=4 class="muted">키 없음</td></tr>`;
-}
-async function issueKey() {
-  const { api_key } = await api("POST", `/admin/api/advertisers/${CUR.id}/keys`, {});
-  document.getElementById("newKey").innerHTML =
-    `<div class="keybox">⚠️ 지금 한 번만 표시됩니다. 광고주에게 안전하게 전달하세요:<br>${api_key}</div>`;
-  loadKeys(); loadAdvertisers();
-}
-async function revoke(id) {
-  if (!confirm("이 키를 폐기하시겠습니까? 되돌릴 수 없습니다.")) return;
-  await api("POST", `/admin/api/keys/${id}/revoke`, {});
-  loadKeys(); loadAdvertisers();
-}
-async function triggerEnrich() {
-  try { const r = await api("POST", "/admin/api/enrich", {}); alert(r.message); }
-  catch (e) { alert("실패: " + e.message); }
-}
-function esc(s) { return s ? String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) : ""; }
 
-if (TOKEN) saveToken();
+async function loadAdvertisers(){ const {data}=await api("GET","/admin/api/advertisers"); ADVS=data; renderAdvertisers(); }
+function renderAdvertisers(){
+  const term=(document.getElementById("advSearch").value||"").trim().toLowerCase();
+  const sort=document.getElementById("advSort").value;
+  let list=ADVS.slice();
+  if(term) list=list.filter(a=>(a.name||"").toLowerCase().includes(term));
+  const byName=(a,b)=>(a.name||"").localeCompare(b.name||"","ko");
+  const cmp={ name:byName, accounts:(a,b)=>(b.accounts-a.accounts)||byName(a,b),
+    keys:(a,b)=>(b.active_keys-a.active_keys)||byName(a,b), recent:(a,b)=>b.id-a.id }[sort]||byName;
+  list.sort(cmp);
+  document.getElementById("advCount").textContent=`총 ${ADVS.length}개`+(term?` · ${list.length} 검색`:"");
+  document.getElementById("advList").innerHTML = list.map(a=>
+    `<div class="adv-item ${CUR&&CUR.id===a.id?'active':''}" onclick="selectAdvertiser(${a.id})">
+       <span class="nm">${esc(a.name)}</span>
+       <span class="meta">계정 ${a.accounts} · 키 ${a.active_keys}</span></div>`).join("")
+    || `<div class="adv-empty">검색 결과 없음</div>`;
+}
+async function createAdvertiser(){
+  const el=document.getElementById("newAdv"); const name=el.value.trim(); if(!name) return;
+  await api("POST","/admin/api/advertisers",{name}); el.value="";
+  await loadAdvertisers(); toast("광고주 추가됨");
+}
+async function selectAdvertiser(id){
+  const adv=ADVS.find(a=>a.id===id); CUR={id, name:adv?adv.name:String(id)};
+  document.getElementById("empty").style.display="none";
+  document.getElementById("detail").style.display="block";
+  document.getElementById("advTitle").textContent=CUR.name;
+  document.getElementById("newKey").innerHTML="";
+  document.getElementById("searchBody").innerHTML=`<tr><td colspan="4" class="cell-empty">검색어를 입력하세요</td></tr>`;
+  renderAdvertisers(); loadAssigned(); loadKeys();
+}
+async function loadAssigned(){
+  const {data}=await api("GET","/admin/api/accounts?assigned=yes&size=100&q=");
+  const mine=data.filter(a=>a.advertiser_id===CUR.id);
+  document.getElementById("tileAccounts").textContent=mine.length;
+  document.getElementById("assignedBody").innerHTML = mine.map(a=>
+    `<tr><td class="num">${a.naver_account_no}</td>
+     <td class="name">${esc(a.account_name)||'<span style="color:var(--faint)">(미보강)</span>'}</td>
+     <td style="color:var(--muted)">${esc(a.manager_account_name)||'—'}</td>
+     <td style="text-align:right"><button class="btn btn-danger btn-sm" onclick="unassign(${a.naver_account_no})">해제</button></td></tr>`).join("")
+    || `<tr><td colspan="4" class="cell-empty">배정된 계정이 없습니다</td></tr>`;
+}
+async function searchAccounts(){
+  const q=document.getElementById("q").value.trim();
+  const f=document.getElementById("assignedFilter").value;
+  const {data}=await api("GET",`/admin/api/accounts?q=${encodeURIComponent(q)}&assigned=${f}&size=30`);
+  document.getElementById("searchBody").innerHTML = data.map(a=>
+    `<tr><td class="num">${a.naver_account_no}</td>
+     <td class="name">${esc(a.account_name)||'<span style="color:var(--faint)">(미보강)</span>'}</td>
+     <td>${a.advertiser_name?esc(a.advertiser_name):'<span style="color:var(--faint)">미배정</span>'}</td>
+     <td style="text-align:right"><button class="btn btn-primary btn-sm" onclick="assign(${a.naver_account_no})">배정</button></td></tr>`).join("")
+    || `<tr><td colspan="4" class="cell-empty">결과 없음</td></tr>`;
+}
+async function assign(no){ await api("POST",`/admin/api/advertisers/${CUR.id}/accounts`,{account_nos:[no]});
+  loadAssigned(); searchAccounts(); loadAdvertisers(); toast("계정 배정됨"); }
+async function unassign(no){ await api("DELETE",`/admin/api/advertisers/${CUR.id}/accounts/${no}`);
+  loadAssigned(); loadAdvertisers(); toast("계정 해제됨"); }
+
+async function loadKeys(){
+  const {data}=await api("GET",`/admin/api/advertisers/${CUR.id}/keys`);
+  document.getElementById("tileKeys").textContent=data.filter(k=>k.status==="active").length;
+  document.getElementById("keysBody").innerHTML = data.map(k=>
+    `<tr><td class="mono">${k.key_prefix}</td>
+     <td><span class="pill ${k.status==='revoked'?'revoked':'active'}">${k.status}</span></td>
+     <td style="color:var(--muted)">${k.last_used_at?k.last_used_at.slice(0,10):'—'}</td>
+     <td style="text-align:right">${k.status==='active'?`<button class="btn btn-danger btn-sm" onclick="revoke(${k.id})">폐기</button>`:''}</td></tr>`).join("")
+    || `<tr><td colspan="4" class="cell-empty">발급된 키가 없습니다</td></tr>`;
+}
+async function issueKey(){
+  const {api_key}=await api("POST",`/admin/api/advertisers/${CUR.id}/keys`,{});
+  document.getElementById("newKey").innerHTML =
+    `<div class="keyreveal">
+       <div class="cap">⚠️ 이 키는 지금 한 번만 표시됩니다 — 광고주에게 안전하게 전달하세요</div>
+       <div class="kv"><code id="freshKey">${esc(api_key)}</code>
+         <button class="btn btn-sm" onclick="copyKey()">복사</button></div>
+     </div>`;
+  loadKeys(); loadAdvertisers(); toast("새 키 발급됨");
+}
+function copyKey(){ const t=document.getElementById("freshKey").textContent;
+  navigator.clipboard.writeText(t).then(()=>toast("키를 복사했습니다"),()=>toast("복사 실패","err")); }
+async function revoke(id){
+  if(!confirm("이 키를 폐기하시겠습니까? 되돌릴 수 없습니다.")) return;
+  await api("POST",`/admin/api/keys/${id}/revoke`,{}); loadKeys(); loadAdvertisers(); toast("키 폐기됨","warn");
+}
+async function triggerEnrich(){
+  try{ const r=await api("POST","/admin/api/enrich",{}); toast(r.message||"실행됨"); }
+  catch(e){ toast("실패: "+e.message,"err"); }
+}
+function esc(s){ return s?String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])):""; }
+
+if(TOKEN) saveToken();
 </script>
 </body>
 </html>
