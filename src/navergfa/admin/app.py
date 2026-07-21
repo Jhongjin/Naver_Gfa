@@ -281,6 +281,38 @@ def usage_timeseries(days: int = 14, _: None = Depends(require_admin)) -> dict:
     return {"data": [dict(r) for r in rows]}
 
 
+@router.get("/admin/api/advertisers/{advertiser_id}/usage")
+def advertiser_usage(advertiser_id: int, days: int = 14, _: None = Depends(require_admin)) -> dict:
+    with engine.begin() as conn:
+        summ = conn.execute(
+            text(
+                """
+                SELECT count(*) FILTER (WHERE ts >= now() - interval '7 days')  AS calls_7d,
+                       count(*) FILTER (WHERE ts >= now() - interval '30 days') AS calls_30d,
+                       max(ts) AS last_call
+                  FROM api_audit_logs WHERE advertiser_id = :aid
+                """
+            ),
+            {"aid": advertiser_id},
+        ).mappings().first()
+        series = conn.execute(
+            text(
+                """
+                SELECT to_char(g.d, 'YYYY-MM-DD') AS d, coalesce(c.calls, 0) AS calls
+                  FROM (SELECT ((now() AT TIME ZONE 'Asia/Seoul')::date - offs) AS d
+                        FROM generate_series(0, :d - 1) AS offs) g
+                  LEFT JOIN (SELECT (ts AT TIME ZONE 'Asia/Seoul')::date AS dd, count(*) AS calls
+                             FROM api_audit_logs
+                             WHERE advertiser_id = :aid AND ts >= now() - make_interval(days => :d)
+                             GROUP BY dd) c ON c.dd = g.d
+                 ORDER BY g.d
+                """
+            ),
+            {"aid": advertiser_id, "d": days},
+        ).mappings().all()
+    return {"summary": dict(summ) if summ else {}, "series": [dict(r) for r in series]}
+
+
 # ── 전체 이름 보강 (GitHub Actions 트리거) ──
 @router.post("/admin/api/enrich")
 def trigger_enrich(_: None = Depends(require_admin)) -> dict:

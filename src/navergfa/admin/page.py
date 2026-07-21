@@ -183,6 +183,11 @@ HTML_PAGE = r"""<!doctype html>
   .ugrid .panel{overflow:hidden}
   .ugrid .sec-h{margin-bottom:0;padding:16px 18px 12px;border-bottom:1px solid var(--line)}
   .logscroll{max-height:360px;overflow-y:auto}
+  .seg{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:2px}
+  .seg button{border:0;background:transparent;padding:5px 12px;font-size:12px;font-weight:600;border-radius:7px;
+    cursor:pointer;color:var(--muted);font-family:inherit;transition:.12s}
+  .seg button.on{background:#fff;color:var(--ink);box-shadow:var(--sh)}
+  #advChart svg{display:block}
 
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -250,6 +255,11 @@ HTML_PAGE = r"""<!doctype html>
       </div>
 
       <div class="sec">
+        <div class="sec-h"><h3>사용 현황 · 최근 14일</h3><span id="advUsageMeta" class="count"></span></div>
+        <div id="advChart" class="chart"></div>
+      </div>
+
+      <div class="sec">
         <div class="sec-h"><h3>배정된 광고계정</h3></div>
         <div class="tblwrap"><table>
           <thead><tr><th>번호</th><th>이름</th><th>팀</th><th></th></tr></thead>
@@ -296,12 +306,19 @@ HTML_PAGE = r"""<!doctype html>
       <div class="kpi"><div class="k">에러율 · 7일</div><div class="v tnum" id="kerr">–</div></div>
     </div>
     <div class="panel chartcard">
-      <div class="sec-h"><h3>일별 호출 · 최근 14일</h3></div>
+      <div class="sec-h"><h3 id="chartTitle">일별 호출 · 최근 14일</h3>
+        <div class="seg" id="periodSeg">
+          <button data-d="14" class="on" onclick="setPeriod(14)">14일</button>
+          <button data-d="30" onclick="setPeriod(30)">30일</button>
+          <button data-d="90" onclick="setPeriod(90)">90일</button>
+        </div>
+      </div>
       <div id="chart" class="chart"></div>
     </div>
     <div class="ugrid">
       <div class="panel">
-        <div class="sec-h"><h3>광고주별 사용 현황 · 30일</h3></div>
+        <div class="sec-h"><h3 id="byAdvTitle">광고주별 사용 현황 · 14일</h3>
+          <button class="btn btn-sm" onclick="exportCSV()">CSV 내보내기</button></div>
         <div class="logscroll"><div class="tblwrap" style="border:0"><table>
           <thead><tr><th>광고주</th><th>호출</th><th>에러</th><th>마지막</th></tr></thead>
           <tbody id="byAdvBody"></tbody></table></div></div>
@@ -374,7 +391,7 @@ async function selectAdvertiser(id){
   document.getElementById("advTitle").textContent=CUR.name;
   document.getElementById("newKey").innerHTML="";
   document.getElementById("searchBody").innerHTML=`<tr><td colspan="4" class="cell-empty">검색어를 입력하세요</td></tr>`;
-  renderAdvertisers(); loadAssigned(); loadKeys();
+  renderAdvertisers(); loadAssigned(); loadKeys(); loadAdvertiserUsage();
 }
 async function loadAssigned(){
   const {data}=await api("GET",`/admin/api/advertisers/${CUR.id}/accounts`);
@@ -442,53 +459,84 @@ function switchView(v){
   document.getElementById("view-usage").hidden  = v!=="usage";
   if(v==="usage" && TOKEN) loadUsage();
 }
-async function loadUsage(){
-  try{
-    const s=await api("GET","/admin/api/usage/summary");
+let PERIOD=14, BYADV=[];
+async function loadUsage(){ loadKPIs(); loadChart(PERIOD); loadByAdv(PERIOD); loadRecent(); }
+async function loadKPIs(){
+  try{ const s=await api("GET","/admin/api/usage/summary");
     document.getElementById("k1").textContent=(s.calls_1d??0).toLocaleString();
     document.getElementById("k7").textContent=(s.calls_7d??0).toLocaleString();
     document.getElementById("kadv").textContent=(s.active_7d??0).toLocaleString();
     document.getElementById("kerr").textContent=(s.calls_7d? Math.round(s.errors_7d/s.calls_7d*100):0)+"%";
-
-    const ts=await api("GET","/admin/api/usage/timeseries?days=14");
-    renderBars(ts.data||[]);
-
-    const ba=await api("GET","/admin/api/usage/by-advertiser?days=30");
-    document.getElementById("byAdvBody").innerHTML=(ba.data||[]).map(r=>
-      `<tr><td class="name">${esc(r.name)}</td>
-       <td class="num">${(r.calls||0).toLocaleString()}</td>
-       <td class="num" style="color:${r.errors?'var(--red)':'var(--muted)'}">${r.errors||0}</td>
-       <td style="color:var(--muted)">${fmt(r.last_call)}</td></tr>`).join("")
-      || `<tr><td colspan="4" class="cell-empty">아직 호출 기록이 없습니다</td></tr>`;
-
-    const rc=await api("GET","/admin/api/usage/recent?limit=40");
-    document.getElementById("recentBody").innerHTML=(rc.data||[]).map(r=>{
-      const err=r.status_code>=400;
-      return `<tr><td class="mono" style="color:var(--muted);font-size:12px">${fmt(r.ts)}</td>
-       <td class="name">${r.advertiser?esc(r.advertiser):'—'}</td>
-       <td class="mono" style="font-size:12px">${esc(r.endpoint)}</td>
-       <td><span class="pill ${err?'revoked':'active'}" style="${err?'color:var(--red);background:var(--red-weak)':''}">${r.status_code}</span></td></tr>`;
-    }).join("") || `<tr><td colspan="4" class="cell-empty">아직 호출 기록이 없습니다</td></tr>`;
   }catch(e){ toast("사용 현황 로드 실패","err"); }
 }
-function renderBars(series){
-  const h=150, pad=16, n=Math.max(series.length,1);
-  const w=Math.max(n*30, 280);
+async function loadChart(days){
+  const ts=await api("GET","/admin/api/usage/timeseries?days="+days);
+  document.getElementById("chartTitle").textContent="일별 호출 · 최근 "+days+"일";
+  renderBars(ts.data||[], "chart", 150, true);
+}
+async function loadByAdv(days){
+  const ba=await api("GET","/admin/api/usage/by-advertiser?days="+days);
+  BYADV=ba.data||[];
+  document.getElementById("byAdvTitle").textContent="광고주별 사용 현황 · "+days+"일";
+  document.getElementById("byAdvBody").innerHTML=BYADV.map(r=>
+    `<tr><td class="name">${esc(r.name)}</td>
+     <td class="num">${(r.calls||0).toLocaleString()}</td>
+     <td class="num" style="color:${r.errors?'var(--red)':'var(--muted)'}">${r.errors||0}</td>
+     <td style="color:var(--muted)">${fmt(r.last_call)}</td></tr>`).join("")
+    || `<tr><td colspan="4" class="cell-empty">아직 호출 기록이 없습니다</td></tr>`;
+}
+async function loadRecent(){
+  const rc=await api("GET","/admin/api/usage/recent?limit=40");
+  document.getElementById("recentBody").innerHTML=(rc.data||[]).map(r=>{
+    const err=r.status_code>=400;
+    return `<tr><td class="mono" style="color:var(--muted);font-size:12px">${fmt(r.ts)}</td>
+     <td class="name">${r.advertiser?esc(r.advertiser):'—'}</td>
+     <td class="mono" style="font-size:12px">${esc(r.endpoint)}</td>
+     <td><span class="pill ${err?'revoked':'active'}" style="${err?'color:var(--red);background:var(--red-weak)':''}">${r.status_code}</span></td></tr>`;
+  }).join("") || `<tr><td colspan="4" class="cell-empty">아직 호출 기록이 없습니다</td></tr>`;
+}
+function setPeriod(d){ PERIOD=d;
+  document.querySelectorAll("#periodSeg button").forEach(b=>b.classList.toggle("on", (+b.dataset.d)===d));
+  loadChart(d); loadByAdv(d);
+}
+function csvCell(s){ s=String(s??""); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
+function exportCSV(){
+  if(!BYADV.length){ toast("내보낼 데이터가 없습니다","warn"); return; }
+  const head=["광고주","호출","에러","마지막호출"];
+  const lines=[head.join(",")].concat(BYADV.map(r=>
+    [csvCell(r.name), r.calls||0, r.errors||0, csvCell(fmt(r.last_call))].join(",")));
+  const blob=new Blob(["﻿"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="gfa_usage_"+PERIOD+"d.csv"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+  toast("CSV를 내보냈습니다");
+}
+async function loadAdvertiserUsage(){
+  try{
+    const u=await api("GET",`/admin/api/advertisers/${CUR.id}/usage?days=14`);
+    const s=u.summary||{};
+    document.getElementById("advUsageMeta").textContent=
+      `7일 ${(s.calls_7d||0).toLocaleString()}회 · 30일 ${(s.calls_30d||0).toLocaleString()}회 · 마지막 ${s.last_call?fmt(s.last_call):'없음'}`;
+    renderBars(u.series||[], "advChart", 92, false);
+  }catch(e){ document.getElementById("advChart").innerHTML=""; document.getElementById("advUsageMeta").textContent=""; }
+}
+function renderBars(series, elId, h, showAxis){
+  const pad=14, n=Math.max(series.length,1);
+  const w=Math.max(n*26, 260);
   const max=Math.max(1,...series.map(d=>d.calls));
-  const slot=(w-pad*2)/n, bw=Math.min(22, slot-8);
+  const slot=(w-pad*2)/n, bw=Math.min(20, slot-6);
   const bars=series.map((d,i)=>{
     const x=pad+i*slot+(slot-bw)/2;
-    const bh=(d.calls/max)*(h-pad*2);
+    const drawn=d.calls>0?Math.max((d.calls/max)*(h-pad*2),3):0;
     const last=i===series.length-1;
-    const drawn=d.calls>0?Math.max(bh,3):0;
     return `<rect x="${x.toFixed(1)}" y="${(h-pad-drawn).toFixed(1)}" width="${bw.toFixed(1)}" height="${drawn.toFixed(1)}" rx="3"
       fill="${last?'var(--accent)':'#a9c2ff'}"><title>${d.d} · ${d.calls}회</title></rect>`;
   }).join("");
   const base=`<line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" stroke="var(--line)" stroke-width="1"/>`;
-  document.getElementById("chart").innerHTML=
-    `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="max-width:100%">${base}${bars}</svg>
-     <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--faint);margin-top:6px">
-       <span>${series[0]?series[0].d.slice(5):''}</span><span>최대 ${max.toLocaleString()}회/일</span><span>${series.length?series[series.length-1].d.slice(5):''}</span></div>`;
+  const axis=showAxis?
+    `<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--faint);margin-top:6px">
+       <span>${series[0]?series[0].d.slice(5):''}</span><span>최대 ${max.toLocaleString()}회/일</span><span>${series.length?series[series.length-1].d.slice(5):''}</span></div>`:"";
+  document.getElementById(elId).innerHTML=
+    `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="max-width:100%">${base}${bars}</svg>${axis}`;
 }
 
 if(TOKEN) saveToken();
