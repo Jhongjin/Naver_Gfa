@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import text
 
@@ -21,7 +21,8 @@ from ..config import settings
 from ..db.engine import engine
 from .page import HTML_PAGE
 
-app = FastAPI(title="Naver GFA Admin", version="0.1.0")
+# 관리자 라우터 — 브로커 앱에 include 하여 단일 함수로 배포한다(Vercel 멀티함수 회피).
+router = APIRouter()
 
 
 def require_admin(x_admin_token: str = Header(default="")) -> None:
@@ -29,23 +30,18 @@ def require_admin(x_admin_token: str = Header(default="")) -> None:
         raise HTTPException(status_code=401, detail="unauthorized")
 
 
-@app.get("/")
-def root() -> RedirectResponse:
-    return RedirectResponse(url="/admin")
-
-
-@app.get("/admin", response_class=HTMLResponse)
+@router.get("/admin", response_class=HTMLResponse)
 def page() -> str:
     return HTML_PAGE
 
 
-@app.get("/admin/api/me")
+@router.get("/admin/api/me")
 def me(_: None = Depends(require_admin)) -> dict:
     return {"ok": True}
 
 
 # ── 광고주 ──
-@app.get("/admin/api/advertisers")
+@router.get("/admin/api/advertisers")
 def list_advertisers(_: None = Depends(require_admin)) -> dict:
     with engine.begin() as conn:
         rows = conn.execute(
@@ -62,7 +58,7 @@ def list_advertisers(_: None = Depends(require_admin)) -> dict:
     return {"data": [dict(r) for r in rows]}
 
 
-@app.post("/admin/api/advertisers")
+@router.post("/admin/api/advertisers")
 def create_advertiser(body: dict, _: None = Depends(require_admin)) -> dict:
     name = (body.get("name") or "").strip()
     if not name:
@@ -80,7 +76,7 @@ def create_advertiser(body: dict, _: None = Depends(require_admin)) -> dict:
 
 
 # ── 광고계정 검색/배정 ──
-@app.get("/admin/api/accounts")
+@router.get("/admin/api/accounts")
 def search_accounts(
     q: str = "",
     assigned: str = "",  # "", "yes", "no"
@@ -116,7 +112,7 @@ def search_accounts(
     return {"data": [dict(r) for r in rows]}
 
 
-@app.post("/admin/api/advertisers/{advertiser_id}/accounts")
+@router.post("/admin/api/advertisers/{advertiser_id}/accounts")
 def assign_accounts(advertiser_id: int, body: dict, _: None = Depends(require_admin)) -> dict:
     nos = body.get("account_nos") or []
     if not isinstance(nos, list) or not nos:
@@ -133,7 +129,7 @@ def assign_accounts(advertiser_id: int, body: dict, _: None = Depends(require_ad
     return {"assigned": len(nos)}
 
 
-@app.delete("/admin/api/advertisers/{advertiser_id}/accounts/{no}")
+@router.delete("/admin/api/advertisers/{advertiser_id}/accounts/{no}")
 def unassign_account(advertiser_id: int, no: int, _: None = Depends(require_admin)) -> dict:
     with engine.begin() as conn:
         conn.execute(
@@ -147,7 +143,7 @@ def unassign_account(advertiser_id: int, no: int, _: None = Depends(require_admi
 
 
 # ── API 키 ──
-@app.get("/admin/api/advertisers/{advertiser_id}/keys")
+@router.get("/admin/api/advertisers/{advertiser_id}/keys")
 def list_keys(advertiser_id: int, _: None = Depends(require_admin)) -> dict:
     with engine.begin() as conn:
         rows = conn.execute(
@@ -160,7 +156,7 @@ def list_keys(advertiser_id: int, _: None = Depends(require_admin)) -> dict:
     return {"data": [dict(r) for r in rows]}
 
 
-@app.post("/admin/api/advertisers/{advertiser_id}/keys")
+@router.post("/admin/api/advertisers/{advertiser_id}/keys")
 def issue_key(advertiser_id: int, _: None = Depends(require_admin)) -> dict:
     full, prefix, key_hash = generate_api_key()
     with engine.begin() as conn:
@@ -179,7 +175,7 @@ def issue_key(advertiser_id: int, _: None = Depends(require_admin)) -> dict:
     return {"api_key": full, "key_prefix": prefix}
 
 
-@app.post("/admin/api/keys/{key_id}/revoke")
+@router.post("/admin/api/keys/{key_id}/revoke")
 def revoke_key(key_id: int, _: None = Depends(require_admin)) -> dict:
     with engine.begin() as conn:
         conn.execute(
@@ -192,7 +188,7 @@ def revoke_key(key_id: int, _: None = Depends(require_admin)) -> dict:
 
 
 # ── 전체 이름 보강 (GitHub Actions 트리거) ──
-@app.post("/admin/api/enrich")
+@router.post("/admin/api/enrich")
 def trigger_enrich(_: None = Depends(require_admin)) -> dict:
     if not settings.github_dispatch_token:
         return {
@@ -212,3 +208,13 @@ def trigger_enrich(_: None = Depends(require_admin)) -> dict:
     if resp.status_code >= 300:
         raise HTTPException(502, f"dispatch 실패: {resp.status_code} {resp.text[:200]}")
     return {"triggered": True, "message": "전체 이름 보강 워크플로를 시작했습니다(수 분 소요)."}
+
+
+# ── 로컬 단독 실행용 앱 (uvicorn src.navergfa.admin.app:app) ──
+app = FastAPI(title="Naver GFA Admin", version="0.1.0")
+app.include_router(router)
+
+
+@app.get("/")
+def _local_root() -> RedirectResponse:
+    return RedirectResponse(url="/admin")

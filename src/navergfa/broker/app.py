@@ -14,10 +14,13 @@ from typing import Any
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from sqlalchemy import text
 
+from ..admin.app import router as admin_router
 from ..db.engine import engine, tenant_connection
 from .security import hash_api_key
 
 app = FastAPI(title="Naver GFA Broker API", version="0.1.0")
+# 운영자 콘솔(/admin, /admin/api/*) 을 같은 함수에 포함 (ADMIN_TOKEN 별도 인증)
+app.include_router(admin_router)
 
 
 def authenticate(authorization: str = Header(...)) -> dict[str, Any]:
