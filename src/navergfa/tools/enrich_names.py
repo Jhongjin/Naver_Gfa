@@ -59,8 +59,11 @@ async def main(all_accounts: bool, sleep: float) -> None:
 
     printed = False
     updated = 0
+    total = len(rows)
     async with NaverAdApiClient() as client:
-        for r in rows:
+        for i, r in enumerate(rows, 1):
+            if i % 100 == 0 or i == total:
+                print(f"  ... {i}/{total} 진행 (보강 {updated})")
             no = r["naver_account_no"]
             amn = r.get("manager_account_no") or settings.naver_manager_account_no
             try:
