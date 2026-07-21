@@ -39,19 +39,23 @@ jobs:
           NAVER_MANAGER_ACCOUNT_NO: ${{ vars.NAVER_MANAGER_ACCOUNT_NO || '4213' }}
         run: python -m src.navergfa.collector.run
 
-  # 리포트 수집 잡 — naver/reports.py 스펙 확정 후 활성화한다.
-  # sync-reports:
-  #   runs-on: ubuntu-latest
-  #   timeout-minutes: 30
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-python@v5
-  #       with: { python-version: "3.12", cache: pip }
-  #     - run: pip install -r requirements.txt
-  #     - name: Sync reports
-  #       env:
-  #         DATABASE_URL: ${{ secrets.DATABASE_URL }}
-  #         NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
-  #         NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
-  #         NAVER_REFRESH_TOKEN: ${{ secrets.NAVER_REFRESH_TOKEN }}
-  #       run: python -m src.navergfa.collector.run --reports
+  # 배정된 계정의 성과 수집 — 최근 3일(정산 보정 반영)
+  sync-reports:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Sync reports (recent 3 days)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          NAVER_REFRESH_TOKEN: ${{ secrets.NAVER_REFRESH_TOKEN }}
+          NAVER_MANAGER_ACCOUNT_NO: ${{ vars.NAVER_MANAGER_ACCOUNT_NO || '4213' }}
+        run: python -m src.navergfa.collector.run --reports --days 3
