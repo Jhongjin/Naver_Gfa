@@ -189,6 +189,49 @@ HTML_PAGE = r"""<!doctype html>
   .seg button.on{background:#fff;color:var(--ink);box-shadow:var(--sh)}
   #advChart svg{display:block}
 
+  /* ── 가이드 ── */
+  .gwrap{max-width:900px;margin:0 auto;padding:20px 22px 60px;display:flex;flex-direction:column;gap:16px}
+  .gcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--sh);padding:22px 24px}
+  .gk{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:800;margin-bottom:6px}
+  .gcard h2{margin:0 0 10px;font-size:19px;font-weight:800;letter-spacing:-.01em}
+  .gcard p{margin:0 0 12px;max-width:68ch;line-height:1.72}
+  .gcard p.dim{color:var(--muted)}
+  .gflow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:16px 0 10px}
+  .gnode{flex:1;min-width:150px;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:12px;text-align:center}
+  .gnode.mid{border-color:var(--accent);background:var(--accent-weak)}
+  .gnode .t{font-weight:700;font-size:13px}
+  .gnode .s{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .garrow{color:var(--faint);flex:0 0 auto;font-size:15px}
+  .gtask{border:1px solid var(--line);border-radius:12px;margin:12px 0;overflow:hidden}
+  .gtask>.h{background:var(--panel2);padding:11px 15px;font-weight:700;font-size:14px;
+    border-bottom:1px solid var(--line);display:flex;gap:9px;align-items:center}
+  .gtask>.h .b{width:22px;height:22px;border-radius:7px;background:var(--accent);color:#fff;
+    font-size:11px;font-weight:800;display:grid;place-items:center;flex:none}
+  .gtask>.bd{padding:4px 15px 14px}
+  .gsteps{margin:6px 0 0;padding-left:0;list-style:none;counter-reset:gs}
+  .gsteps li{counter-increment:gs;position:relative;padding:8px 0 8px 32px;border-bottom:1px dashed var(--line);font-size:13.5px}
+  .gsteps li:last-child{border-bottom:0}
+  .gsteps li::before{content:counter(gs);position:absolute;left:0;top:8px;width:21px;height:21px;border-radius:50%;
+    background:var(--accent-weak);color:var(--accent-ink);font-size:11px;font-weight:800;display:grid;place-items:center}
+  .gnote{border-left:3px solid var(--accent);background:var(--accent-weak);border-radius:0 10px 10px 0;
+    padding:11px 14px;margin:12px 0;font-size:13.5px}
+  .gnote.warn{border-color:var(--amber);background:var(--amber-weak)}
+  .gnote.danger{border-color:var(--red);background:var(--red-weak)}
+  .gpre{background:var(--chrome);color:#dbe7f6;border-radius:10px;padding:13px 15px;overflow-x:auto;
+    font-size:12.5px;line-height:1.65;margin:10px 0;font-family:ui-monospace,'SF Mono',Consolas,monospace;white-space:pre}
+  .gkbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;
+    padding:1px 7px;font-size:12.5px;font-weight:600;white-space:nowrap}
+  .gtbl{width:100%;border-collapse:collapse;font-size:13.5px;margin:10px 0}
+  .gtbl th,.gtbl td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line)}
+  .gtbl th{font-size:11px;text-transform:uppercase;color:var(--faint);letter-spacing:.05em;font-weight:700}
+  .gfaq{border:1px solid var(--line);border-radius:11px;margin:9px 0}
+  .gfaq summary{cursor:pointer;padding:12px 15px;font-weight:700;font-size:13.5px;list-style:none;
+    display:flex;justify-content:space-between;gap:10px}
+  .gfaq summary::-webkit-details-marker{display:none}
+  .gfaq summary::after{content:"+";color:var(--faint)}
+  .gfaq[open] summary::after{content:"\2013"}
+  .gfaq .a{padding:0 15px 13px;color:var(--muted);font-size:13.5px;line-height:1.65}
+
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -201,6 +244,7 @@ HTML_PAGE = r"""<!doctype html>
   <nav class="nav">
     <button class="tab active" data-view="manage" onclick="switchView('manage')">관리</button>
     <button class="tab" data-view="usage" onclick="switchView('usage')">사용 현황</button>
+    <button class="tab" data-view="guide" onclick="switchView('guide')">가이드</button>
   </nav>
   <div class="auth">
     <input id="token" type="password" placeholder="관리자 토큰" autocomplete="off">
@@ -333,6 +377,145 @@ HTML_PAGE = r"""<!doctype html>
   </div>
 </section>
 
+<section id="view-guide" hidden>
+  <div class="gwrap">
+
+    <div class="gcard">
+      <div class="gk">01 · 개념</div>
+      <h2>이 플랫폼은 무슨 일을 하나요?</h2>
+      <p>네이버는 GFA API 키를 <b>개별 광고주가 아니라 미디어렙사에게만</b> 발급합니다. 우리 렙사 키를
+      광고주에게 그대로 주면 <b>A 광고주가 B·C·D 등 모든 광고주 데이터까지</b> 보게 됩니다.</p>
+      <p>이 플랫폼은 그 사이에서 <b>중계(브로커)</b> 역할을 합니다. 네이버 키는 우리 서버 안에만 두고,
+      각 광고주에게는 <b>우리가 발급한 전용 키</b>를 줍니다. 그 키로는 <b>배정된 계정 데이터만</b> 조회됩니다.</p>
+      <div class="gflow">
+        <div class="gnode"><div class="t">광고주 A · B · C</div><div class="s">각자 전용 키</div></div>
+        <div class="garrow">▶</div>
+        <div class="gnode mid"><div class="t">우리 플랫폼</div><div class="s">중계 · 권한 분리</div></div>
+        <div class="garrow">▶</div>
+        <div class="gnode"><div class="t">네이버 GFA</div><div class="s">렙사 관리계정 API</div></div>
+      </div>
+      <div class="gnote"><b>핵심 원칙</b> — 네이버 키는 절대 광고주에게 나가지 않습니다. 광고주는 우리 키로
+      우리 API만 호출하고, 시스템이 자기 계정 데이터만 걸러서 돌려줍니다.</div>
+    </div>
+
+    <div class="gcard">
+      <div class="gk">02 · 기능</div>
+      <h2>플랫폼이 제공하는 것</h2>
+      <table class="gtbl">
+        <tr><th style="width:170px">기능</th><th>설명</th></tr>
+        <tr><td><b>광고주별 전용 키</b></td><td>광고주마다 허용 계정이 묶인 키를 발급·폐기</td></tr>
+        <tr><td><b>스코프 리포팅 API</b></td><td>광고주가 자기 성과(노출·클릭·광고비·전환)를 직접 조회</td></tr>
+        <tr><td><b>운영자 콘솔</b></td><td>광고주 등록, 계정 검색·배정, 키 관리를 웹에서</td></tr>
+        <tr><td><b>사용 현황</b></td><td>어느 광고주가 얼마나 호출하는지 모니터링</td></tr>
+        <tr><td><b>자동 수집</b></td><td>매일 새벽 네이버에서 계정·성과 자동 갱신</td></tr>
+      </table>
+    </div>
+
+    <div class="gcard">
+      <div class="gk">03 · 콘솔 사용법</div>
+      <h2>단계별 따라하기</h2>
+
+      <div class="gtask"><div class="h"><span class="b">A</span>콘솔 접속</div><div class="bd">
+        <ol class="gsteps">
+          <li>우측 상단 칸에 <b>관리자 토큰</b>(팀 내부 공유) 입력 → <span class="gkbd">접속</span></li>
+          <li>“접속됨” 표시가 뜨면 왼쪽에 광고주 목록이 나타납니다</li>
+        </ol></div></div>
+
+      <div class="gtask"><div class="h"><span class="b">B</span>신규 광고주 추가</div><div class="bd">
+        <ol class="gsteps">
+          <li>왼쪽 하단 <span class="gkbd">새 광고주명</span> 입력란에 이름 입력</li>
+          <li><span class="gkbd">추가</span> 클릭 (Enter도 가능) → 목록에 바로 나타남</li>
+        </ol>
+        <div class="gnote">같은 이름이 있으면 새로 만들지 않고 기존 광고주를 재사용합니다.</div></div></div>
+
+      <div class="gtask"><div class="h"><span class="b">C</span>계정 배정 — 광고주에 계정 넣기</div><div class="bd">
+        <ol class="gsteps">
+          <li>왼쪽에서 <b>광고주 이름 클릭</b> → 오른쪽에 상세가 열림</li>
+          <li><b>계정 검색·배정</b>에 계정명이나 번호 입력 → <span class="gkbd">검색</span></li>
+          <li>원하는 계정의 <span class="gkbd">배정</span> 클릭 → “배정된 광고계정”에 추가됨</li>
+          <li>계정이 여러 개면 반복 (한 광고주에 여러 계정 가능)</li>
+        </ol>
+        <div class="gnote warn"><b>배정 전 확인</b> — 자동 생성된 광고주는 계정명 접두로 묶여 있어 드물게 다른
+        회사가 섞일 수 있습니다(대기업 계열사). 키를 주기 전 배정 계정이 정말 그 광고주 것인지 확인하세요.</div></div></div>
+
+      <div class="gtask"><div class="h"><span class="b">D</span>계정 해제</div><div class="bd">
+        <ol class="gsteps">
+          <li>“배정된 광고계정”에서 해당 줄의 <span class="gkbd">해제</span> 클릭</li>
+          <li>즉시 빠집니다. 필요하면 다른 광고주에 다시 배정</li>
+        </ol></div></div>
+
+      <div class="gtask"><div class="h"><span class="b">E</span>API 키 발급</div><div class="bd">
+        <ol class="gsteps">
+          <li>광고주 선택 → 배정 계정이 맞는지 확인</li>
+          <li><b>API 키</b> 섹션의 <span class="gkbd">+ 새 키 발급</span> 클릭</li>
+          <li>표시된 키를 <span class="gkbd">복사</span> → 광고주에게 안전하게 전달</li>
+        </ol>
+        <div class="gnote danger"><b>주의</b> — 키는 이 순간 딱 한 번만 보입니다. 놓쳤으면 폐기하고 새로 발급하세요.</div></div></div>
+
+      <div class="gtask"><div class="h"><span class="b">F</span>API 키 폐기</div><div class="bd">
+        <ol class="gsteps">
+          <li>키 목록에서 <span class="gkbd">폐기</span> 클릭 → 확인</li>
+          <li>즉시 무효(401). 되돌릴 수 없으며, 필요하면 새 키를 발급하면 됩니다</li>
+        </ol></div></div>
+
+      <div class="gtask"><div class="h"><span class="b">G</span>사용 현황 보기</div><div class="bd">
+        <ol class="gsteps">
+          <li>상단 <span class="gkbd">사용 현황</span> 탭 → 오늘·7일 호출, 활성 광고주, 에러율 확인</li>
+          <li>기간 토글(14/30/90일)로 차트와 광고주별 표를 함께 전환</li>
+          <li><span class="gkbd">CSV 내보내기</span>로 광고주별 사용량을 엑셀에서 열 수 있게 저장</li>
+          <li>개별 광고주의 사용량은 <b>관리</b> 탭에서 광고주를 선택하면 미니 차트로 보입니다</li>
+        </ol></div></div>
+    </div>
+
+    <div class="gcard">
+      <div class="gk">04 · 광고주 쪽</div>
+      <h2>광고주가 데이터를 받아가는 법</h2>
+      <p class="dim">광고주(또는 그 개발자)에게 발급한 키와 함께 아래 내용을 전달하면 됩니다.</p>
+      <div class="gpre"># 공통 — 발급 키를 헤더에
+Authorization: Bearer ngfa_xxxxxxxx.xxxxxxxxxxxx
+
+# 내 광고계정 목록
+GET https://naver-gfa.vercel.app/v1/accounts
+
+# 캠페인 성과 (account_no 생략 시 배정 전체)
+GET https://naver-gfa.vercel.app/v1/reports?date_from=2026-06-01&amp;date_to=2026-06-30&amp;account_no=4987</div>
+      <table class="gtbl">
+        <tr><th style="width:170px">응답 필드</th><th>의미</th></tr>
+        <tr><td>impressions</td><td>노출 수</td></tr>
+        <tr><td>clicks</td><td>클릭 수</td></tr>
+        <tr><td>cost</td><td>광고비 (원)</td></tr>
+        <tr><td>conversions</td><td>전환 수</td></tr>
+        <tr><td>data_freshness</td><td>데이터 마지막 갱신 시각</td></tr>
+      </table>
+      <div class="gnote">데이터는 <b>전일까지</b> 제공되며 매일 새벽 갱신됩니다. 조회 기간은 한 번에 최대 31일입니다.</div>
+    </div>
+
+    <div class="gcard">
+      <div class="gk">05 · 안전 수칙</div>
+      <h2>꼭 알아둘 점</h2>
+      <div class="gnote danger"><b>네이버 키·관리자 토큰은 외부 공유 절대 금지.</b> 이 둘이 새면 전체 광고주 데이터가 위험합니다.</div>
+      <div class="gnote warn"><b>키 발급 전 배정 계정 확인.</b> 한 광고주에 다른 회사 계정이 섞이면 그 회사 데이터가 노출됩니다.</div>
+      <div class="gnote"><b>키는 발급 시 한 번만 표시.</b> 분실하면 폐기 후 재발급하세요.</div>
+    </div>
+
+    <div class="gcard">
+      <div class="gk">06 · 문제 해결</div>
+      <h2>자주 묻는 질문</h2>
+      <details class="gfaq"><summary>광고주가 “401 unauthorized”가 뜬대요</summary><div class="a">
+        키가 잘못됐거나(오타·복사 누락) 이미 폐기된 키입니다. 해당 광고주의 키 상태(active/revoked)를 확인하고 필요하면 새 키를 발급하세요.</div></details>
+      <details class="gfaq"><summary>데이터가 비어서 나와요</summary><div class="a">
+        ① 그 광고주에 계정이 배정돼 있는지, ② 해당 계정에 조회 기간의 실제 집행이 있었는지 확인하세요.</div></details>
+      <details class="gfaq"><summary>광고주가 다른 광고주 데이터를 볼 수 있나요?</summary><div class="a">
+        불가능합니다. 키에는 배정된 계정만 묶여 있고 시스템이 요청마다 범위 밖 계정을 차단합니다(이중 방어). 단, 배정 자체를 잘못하면 안 되니 발급 전 확인이 중요합니다.</div></details>
+      <details class="gfaq"><summary>계정 이름이 “(미보강)”으로 떠요</summary><div class="a">
+        아직 네이버에서 계정명을 못 가져온 계정입니다. 왼쪽 유지보수의 <b>전체 계정 이름 보강</b>을 실행하세요. 권한이 없는 일부 계정은 번호로 관리하면 됩니다.</div></details>
+      <details class="gfaq"><summary>한 광고주가 계정이 여러 개예요</summary><div class="a">
+        C단계를 반복해 여러 계정을 배정하면 됩니다. 키 하나로 배정된 모든 계정을 조회합니다.</div></details>
+    </div>
+
+  </div>
+</section>
+
 <div id="toast" class="toast"></div>
 
 <script>
@@ -457,6 +640,7 @@ function switchView(v){
   document.querySelectorAll(".nav .tab").forEach(t=>t.classList.toggle("active", t.dataset.view===v));
   document.getElementById("view-manage").hidden = v!=="manage";
   document.getElementById("view-usage").hidden  = v!=="usage";
+  document.getElementById("view-guide").hidden  = v!=="guide";
   if(v==="usage" && TOKEN) loadUsage();
 }
 let PERIOD=14, BYADV=[];
