@@ -113,7 +113,11 @@ HTML_PAGE = r"""<!doctype html>
   .adv-item.active{background:var(--accent-weak);border-color:color-mix(in srgb,var(--accent) 30%,transparent)}
   .adv-item .nm{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .adv-item.active .nm{color:var(--accent-ink)}
-  .adv-item .meta{font-size:11.5px;color:var(--faint);white-space:nowrap;flex:none}
+  .adv-item .meta{font-size:11.5px;color:var(--faint);white-space:nowrap;flex:none;display:inline-flex;align-items:center;gap:6px}
+  .keydel{border:0;background:transparent;color:var(--faint);font-size:16px;line-height:1;cursor:pointer;
+    padding:0 2px;border-radius:5px;opacity:0;transition:.12s}
+  .adv-item:hover .keydel{opacity:1}
+  .keydel:hover{color:var(--red);background:var(--red-weak)}
   .adv-empty{padding:18px;text-align:center;color:var(--faint);font-size:13px}
 
   .side-foot{border-top:1px solid var(--line);padding:12px 16px}
@@ -571,7 +575,9 @@ function renderKeys(){
   document.getElementById("keyList").innerHTML = list.map(k=>
     `<div class="adv-item ${CUR&&CUR.id===k.id?'active':''}" onclick="selectKey(${k.id})">
        <span class="nm">${esc(k.label)} ${k.status==='revoked'?'<span class="pill revoked" style="margin-left:4px">revoked</span>':''}</span>
-       <span class="meta">계정 ${k.accounts}</span></div>`).join("")
+       <span class="meta">계정 ${k.accounts}
+         <button class="keydel" title="키 삭제" onclick="event.stopPropagation();deleteKey(${k.id})">&times;</button></span>
+     </div>`).join("")
     || `<div class="adv-empty">${KEYS.length?'검색 결과 없음':'키가 없습니다. 아래에서 생성하세요.'}</div>`;
 }
 async function createKey(){
@@ -611,16 +617,25 @@ async function searchAccounts(){
      <td class="name">${esc(a.account_name)||'<span style="color:var(--faint)">(미보강)</span>'}</td>
      <td class="num">${a.key_count||0}</td>
      <td style="text-align:right"><button class="btn btn-primary btn-sm" onclick="addAccount(${a.naver_account_no})">추가</button>
-       <button class="btn btn-sm" onclick="quickKey(${a.naver_account_no}, ${JSON.stringify(esc(a.account_name||('계정 '+a.naver_account_no)))})">이 계정으로 키</button></td></tr>`).join("")
+       <button class="btn btn-sm" onclick="quickKey(${a.naver_account_no})">이 계정으로 키</button></td></tr>`).join("")
     || `<tr><td colspan="4" class="cell-empty">결과 없음</td></tr>`;
 }
 async function addAccount(no){ await api("POST",`/admin/api/keys/${CUR.id}/accounts`,{account_nos:[no]});
   loadKeyDetail(); searchAccounts(); loadKeys(); toast("계정 추가됨"); }
 async function removeAccount(no){ await api("DELETE",`/admin/api/keys/${CUR.id}/accounts/${no}`);
   loadKeyDetail(); loadKeys(); toast("계정 제거됨"); }
-async function quickKey(no, label){
-  const r=await api("POST","/admin/api/keys",{label, account_nos:[no]});
+async function quickKey(no){
+  const r=await api("POST","/admin/api/keys",{account_nos:[no]});  // 라벨은 서버가 계정명으로 자동 생성
   await loadKeys(); selectKey(r.id); showSecret(r.api_key); toast("계정 단위 키 생성됨");
+}
+async function deleteKey(id){
+  const k=KEYS.find(x=>x.id===id);
+  if(!confirm(`키 '${k?k.label:id}' 를 삭제할까요? 기록까지 완전히 제거되며 되돌릴 수 없습니다.`)) return;
+  await api("DELETE",`/admin/api/keys/${id}`,{});
+  if(CUR&&CUR.id===id){ CUR=null;
+    document.getElementById("detail").style.display="none";
+    document.getElementById("empty").style.display=""; }
+  loadKeys(); toast("키 삭제됨","warn");
 }
 function showSecret(api_key){
   document.getElementById("newKey").innerHTML =

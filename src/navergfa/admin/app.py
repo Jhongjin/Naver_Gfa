@@ -57,11 +57,19 @@ def list_keys(_: None = Depends(require_admin)) -> dict:
 @router.post("/admin/api/keys")
 def create_key(body: dict, _: None = Depends(require_admin)) -> dict:
     label = (body.get("label") or "").strip()
-    if not label:
-        raise HTTPException(400, "label required")
     account_nos = body.get("account_nos") or []
     full, prefix, key_hash = generate_api_key()
     with engine.begin() as conn:
+        # 라벨 미지정 + 계정 지정 시: 첫 계정명으로 라벨 자동 생성(계정 단위 발급용)
+        if not label:
+            if account_nos:
+                nm = conn.execute(
+                    text("SELECT account_name FROM naver_accounts WHERE naver_account_no = :n"),
+                    {"n": int(account_nos[0])},
+                ).scalar()
+                label = (nm or "").strip() or f"계정 {account_nos[0]}"
+            else:
+                raise HTTPException(400, "label required")
         kid = conn.execute(
             text(
                 "INSERT INTO api_keys (label, key_prefix, key_hash) "
@@ -77,7 +85,15 @@ def create_key(body: dict, _: None = Depends(require_admin)) -> dict:
                 ),
                 {"k": kid, "n": int(no)},
             )
-    return {"id": kid, "api_key": full, "key_prefix": prefix}
+    return {"id": kid, "api_key": full, "key_prefix": prefix, "label": label}
+
+
+@router.delete("/admin/api/keys/{key_id}")
+def delete_key(key_id: int, _: None = Depends(require_admin)) -> dict:
+    """키 완전 삭제(스코프도 CASCADE 로 함께 제거). 폐기(revoke)와 달리 기록도 지운다."""
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM api_keys WHERE id = :id"), {"id": key_id})
+    return {"ok": True}
 
 
 @router.get("/admin/api/keys/{key_id}")
