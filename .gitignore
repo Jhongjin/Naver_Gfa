@@ -19,3 +19,6 @@ venv/
 Thumbs.db
 .vscode/
 .idea/
+
+# 별도 저장소(우리 repo 아님)
+nasmedia-ads-mcp/
