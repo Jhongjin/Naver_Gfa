@@ -13,15 +13,16 @@ engine = create_engine(settings.database_url, pool_pre_ping=True, future=True)
 
 
 @contextmanager
-def tenant_connection(advertiser_id: int) -> Iterator[Connection]:
-    """트랜잭션을 열고 app.current_tenant 를 로컬 설정한 커넥션을 제공.
+def account_scoped_connection(account_nos: Iterator[int]) -> Iterator[Connection]:
+    """트랜잭션을 열고 app.allowed_accounts(콤마 구분 계정번호)를 로컬 설정.
 
-    RLS 정책이 이 세션 변수를 기준으로 report_facts 행을 필터링한다.
-    is_local=true 이므로 트랜잭션 종료 시 자동 해제된다.
+    RLS 정책 account_scope 가 이 값으로 report_facts 를 계정 기준 필터링한다.
+    조회(브로커)·기록(수집기) 모두 이 컨텍스트로 감싼다. is_local=true.
     """
+    joined = ",".join(str(int(n)) for n in account_nos)
     with engine.begin() as conn:
         conn.execute(
-            text("SELECT set_config('app.current_tenant', :tid, true)"),
-            {"tid": str(advertiser_id)},
+            text("SELECT set_config('app.allowed_accounts', :v, true)"),
+            {"v": joined},
         )
         yield conn

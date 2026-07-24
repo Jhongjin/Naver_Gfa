@@ -17,18 +17,21 @@ from datetime import date, timedelta
 from sqlalchemy import text
 
 from ..config import settings
-from ..db.engine import engine, tenant_connection
+from ..db.engine import account_scoped_connection, engine
 from ..naver.accounts import extract_ad_accounts, fetch_manager_account_tree
 from ..naver.client import NaverAdApiClient
 from ..naver.reports import fetch_campaign_performance, to_fact
 
+# 네이버 관리계정 한도 60회/분 → 호출 간 최소 간격(초)
+_RATE_DELAY = 1.1
+
 _UPSERT_FACT = text(
     """
     INSERT INTO report_facts
-        (advertiser_id, naver_account_no, stat_date, campaign_id, ad_group_id, ad_id,
+        (naver_account_no, stat_date, campaign_id, ad_group_id, ad_id,
          impressions, clicks, cost, conversions, conv_value, updated_at)
     VALUES
-        (:advertiser_id, :naver_account_no, :stat_date, :campaign_id, :ad_group_id, :ad_id,
+        (:naver_account_no, :stat_date, :campaign_id, :ad_group_id, :ad_id,
          :impressions, :clicks, :cost, :conversions, :conv_value, now())
     ON CONFLICT (naver_account_no, stat_date, campaign_id, ad_id) DO UPDATE SET
         impressions = EXCLUDED.impressions,
@@ -83,7 +86,14 @@ async def sync_accounts() -> list[dict]:
 
 
 async def sync_reports(days: int = 7) -> int:
-    """배정된 계정의 캠페인 성과(일별)를 적재. 계정별로 tenant 컨텍스트를 설정해 RLS 통과."""
+    """활성 키에 스코프된 광고계정의 캠페인 성과(일별)를 적재.
+
+    - 대상: 활성 키가 참조하는 계정만(전체 2110이 아님) → 한도·시간 절약.
+    - 네이버 한도(관리계정 60회/분) 준수: 호출마다 _RATE_DELAY 대기.
+    - RLS: 계정별 app.allowed_accounts 설정 후 upsert.
+    """
+    import asyncio
+
     end = date.today() - timedelta(days=1)  # 전일까지
     start = end - timedelta(days=max(days - 1, 0))
 
@@ -92,8 +102,12 @@ async def sync_reports(days: int = 7) -> int:
             dict(r)
             for r in conn.execute(
                 text(
-                    "SELECT naver_account_no, advertiser_id, manager_account_no "
-                    "FROM naver_accounts WHERE advertiser_id IS NOT NULL"
+                    """
+                    SELECT DISTINCT ka.naver_account_no, na.manager_account_no
+                      FROM key_accounts ka
+                      JOIN api_keys k ON k.id = ka.api_key_id AND k.status = 'active'
+                      LEFT JOIN naver_accounts na ON na.naver_account_no = ka.naver_account_no
+                    """
                 )
             ).mappings()
         ]
@@ -102,10 +116,11 @@ async def sync_reports(days: int = 7) -> int:
     async with NaverAdApiClient() as client:
         for acc in accounts:
             no = acc["naver_account_no"]
-            advertiser_id = acc["advertiser_id"]
             amn = acc.get("manager_account_no") or settings.naver_manager_account_no
             try:
-                rows = await fetch_campaign_performance(client, no, start, end, amn)
+                rows = await fetch_campaign_performance(
+                    client, no, start, end, amn, page_delay=_RATE_DELAY
+                )
             except Exception as e:  # noqa: BLE001
                 with engine.begin() as conn:
                     conn.execute(
@@ -116,19 +131,20 @@ async def sync_reports(days: int = 7) -> int:
                         ),
                         {"no": no, "err": str(e)[:500]},
                     )
+                await asyncio.sleep(_RATE_DELAY)
                 continue
 
             facts = [
-                to_fact(r, no, advertiser_id)
+                to_fact(r, no, None)
                 for r in rows
                 if r.get("targetDate") and r.get("campaignNo")
             ]
-            if not facts:
-                continue
-            with tenant_connection(advertiser_id) as conn:
-                for f in facts:
-                    conn.execute(_UPSERT_FACT, f)
-            total += len(facts)
+            if facts:
+                with account_scoped_connection([no]) as conn:
+                    for f in facts:
+                        f.pop("advertiser_id", None)
+                        conn.execute(_UPSERT_FACT, f)
+                total += len(facts)
 
     with engine.begin() as conn:
         conn.execute(

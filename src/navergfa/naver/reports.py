@@ -39,8 +39,14 @@ async def fetch_campaign_performance(
     end_date: date,
     manager_account_no: int | None = None,
     time_unit: str = "daily",
+    page_delay: float = 0.0,
 ) -> list[dict]:
-    """캠페인 단위 과거 성과(일별). next 토큰 페이징 처리."""
+    """캠페인 단위 과거 성과(일별). next 토큰 페이징 처리.
+
+    page_delay: 각 HTTP 호출 후 대기(초) — 네이버 관리계정 60회/분 한도 준수용.
+    """
+    import asyncio
+
     path = f"/adAccounts/{ad_account_no}/performance/past/campaigns"
     base = {
         "startDate": start_date.isoformat(),
@@ -54,6 +60,8 @@ async def fetch_campaign_performance(
         data = await client.get(
             path, access_manager_account_no=manager_account_no, params=params
         )
+        if page_delay:
+            await asyncio.sleep(page_delay)
         batch, nxt = unwrap(data)
         out.extend(batch)
         if not nxt:

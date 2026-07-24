@@ -210,7 +210,7 @@ HTML_PAGE = r"""<!doctype html>
   .seg button{border:0;background:transparent;padding:5px 12px;font-size:12px;font-weight:600;border-radius:7px;
     cursor:pointer;color:var(--muted);font-family:inherit;transition:.12s}
   .seg button.on{background:var(--panel);color:var(--ink);box-shadow:var(--sh)}
-  #advChart svg{display:block}
+  #keyChart svg{display:block}
 
   /* ── 가이드 ── */
   .gwrap{max-width:900px;margin:0 auto;padding:20px 22px 60px;display:flex;flex-direction:column;gap:16px}
@@ -278,24 +278,24 @@ HTML_PAGE = r"""<!doctype html>
 
 <div id="view-manage">
 <div class="shell">
-  <!-- 사이드바 -->
+  <!-- 사이드바: API 키 -->
   <aside class="panel sidebar">
-    <div class="side-head"><h2>광고주</h2><span id="advCount" class="count"></span></div>
+    <div class="side-head"><h2>API 키</h2><span id="keyCount" class="count"></span></div>
     <div class="toolbar">
-      <input id="advSearch" placeholder="광고주 검색" oninput="renderAdvertisers()">
-      <select id="advSort" onchange="renderAdvertisers()">
-        <option value="name">이름순</option>
+      <input id="keySearch" placeholder="키 라벨 검색" oninput="renderKeys()">
+      <select id="keySort" onchange="renderKeys()">
+        <option value="recent">최근순</option>
+        <option value="label">라벨순</option>
         <option value="accounts">계정 많은순</option>
-        <option value="keys">키 많은순</option>
-        <option value="recent">최근 추가순</option>
       </select>
     </div>
-    <div id="advList" class="advscroll"></div>
+    <div id="keyList" class="advscroll"></div>
     <div class="side-foot">
       <div class="newrow">
-        <input id="newAdv" placeholder="새 광고주명" onkeydown="if(event.key==='Enter')createAdvertiser()">
-        <button class="btn btn-primary" onclick="createAdvertiser()">추가</button>
+        <input id="newKeyLabel" placeholder="새 키 라벨 (예: 아이리움안과)" onkeydown="if(event.key==='Enter')createKey()">
+        <button class="btn btn-primary" onclick="createKey()">생성</button>
       </div>
+      <div class="hint" style="font-size:11.5px;color:var(--faint);margin-top:6px">빈 키를 만든 뒤 계정을 담거나, 계정 검색에서 “이 계정으로 키” 로 바로 발급하세요.</div>
       <div class="maint">
         <div class="lbl">유지보수</div>
         <button class="btn" onclick="triggerEnrich()">전체 계정 이름 보강</button>
@@ -307,56 +307,53 @@ HTML_PAGE = r"""<!doctype html>
   <!-- 워크스페이스 -->
   <main class="workspace">
     <div id="empty" class="empty-state">
-      <div class="big"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></div>
-      <p>왼쪽에서 광고주를 선택하거나 새로 추가하세요.</p>
+      <div class="big"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></svg></div>
+      <p>왼쪽에서 키를 선택하거나 새로 생성하세요. 계정을 담아 광고주에게 발급합니다.</p>
     </div>
 
     <div id="detail" class="panel" style="display:none">
       <div class="dhead">
-        <div class="ey">광고주</div>
-        <h1 id="advTitle"></h1>
+        <div class="ey">API 키 · <span id="keyStatus"></span></div>
+        <h1 id="keyTitle"></h1>
+        <div class="count mono" id="keyPrefix" style="margin-top:4px"></div>
       </div>
       <div class="tiles">
-        <div class="tile a"><div class="k">배정 계정</div><div class="v tnum" id="tileAccounts">0</div></div>
-        <div class="tile g"><div class="k">활성 키</div><div class="v tnum" id="tileKeys">0</div></div>
+        <div class="tile a"><div class="k">스코프 계정</div><div class="v tnum" id="tileAccounts">0</div></div>
+        <div class="tile g"><div class="k">최근 7일 호출</div><div class="v tnum" id="tileCalls">0</div></div>
       </div>
 
       <div class="sec">
-        <div class="sec-h"><h3>사용 현황 · 최근 14일</h3><span id="advUsageMeta" class="count"></span></div>
-        <div id="advChart" class="chart"></div>
+        <div class="sec-h"><h3>시크릿</h3></div>
+        <div id="newKey"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm" onclick="reissue()">시크릿 재발급</button>
+          <button class="btn btn-danger btn-sm" id="revokeBtn" onclick="revoke()">키 폐기</button>
+        </div>
+        <div class="hint" style="font-size:11.5px;color:var(--faint);margin-top:8px">시크릿은 발급/재발급 순간 한 번만 표시됩니다. 재발급하면 이전 시크릿은 즉시 무효화됩니다.</div>
       </div>
 
       <div class="sec">
-        <div class="sec-h"><h3>배정된 광고계정</h3></div>
+        <div class="sec-h"><h3>사용 현황 · 최근 14일</h3><span id="keyUsageMeta" class="count"></span></div>
+        <div id="keyChart" class="chart"></div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-h"><h3>이 키의 광고계정</h3></div>
         <div class="tblwrap"><table>
           <thead><tr><th>번호</th><th>이름</th><th>팀</th><th></th></tr></thead>
-          <tbody id="assignedBody"></tbody>
+          <tbody id="scopeBody"></tbody>
         </table></div>
       </div>
 
       <div class="sec">
-        <div class="sec-h"><h3>계정 검색 · 배정</h3></div>
+        <div class="sec-h"><h3>계정 검색 · 추가</h3></div>
         <div class="searchbar">
           <input id="q" placeholder="계정명 또는 번호 검색" onkeydown="if(event.key==='Enter')searchAccounts()">
-          <select id="assignedFilter">
-            <option value="">전체</option>
-            <option value="no">미배정만</option>
-            <option value="yes">배정됨만</option>
-          </select>
           <button class="btn" onclick="searchAccounts()">검색</button>
         </div>
         <div class="tblwrap"><table>
-          <thead><tr><th>번호</th><th>이름</th><th>현재 배정</th><th></th></tr></thead>
+          <thead><tr><th>번호</th><th>이름</th><th>키 수</th><th></th></tr></thead>
           <tbody id="searchBody"><tr><td colspan="4" class="cell-empty">검색어를 입력하세요</td></tr></tbody>
-        </table></div>
-      </div>
-
-      <div class="sec">
-        <div class="sec-h"><h3>API 키</h3><button class="btn btn-primary btn-sm" onclick="issueKey()">+ 새 키 발급</button></div>
-        <div id="newKey"></div>
-        <div class="tblwrap"><table>
-          <thead><tr><th>Prefix</th><th>상태</th><th>마지막 사용</th><th></th></tr></thead>
-          <tbody id="keysBody"></tbody>
         </table></div>
       </div>
     </div>
@@ -369,7 +366,7 @@ HTML_PAGE = r"""<!doctype html>
     <div class="kpis">
       <div class="kpi accent"><div class="k">오늘 호출</div><div class="v tnum" id="k1">–</div></div>
       <div class="kpi"><div class="k">최근 7일 호출</div><div class="v tnum" id="k7">–</div></div>
-      <div class="kpi"><div class="k">활성 광고주 · 7일</div><div class="v tnum" id="kadv">–</div></div>
+      <div class="kpi"><div class="k">활성 키 · 7일</div><div class="v tnum" id="kadv">–</div></div>
       <div class="kpi"><div class="k">에러율 · 7일</div><div class="v tnum" id="kerr">–</div></div>
     </div>
     <div class="panel chartcard">
@@ -384,16 +381,16 @@ HTML_PAGE = r"""<!doctype html>
     </div>
     <div class="ugrid">
       <div class="panel">
-        <div class="sec-h"><h3 id="byAdvTitle">광고주별 사용 현황 · 14일</h3>
+        <div class="sec-h"><h3 id="byAdvTitle">키별 사용 현황 · 14일</h3>
           <button class="btn btn-sm" onclick="exportCSV()">CSV 내보내기</button></div>
         <div class="logscroll"><div class="tblwrap" style="border:0"><table>
-          <thead><tr><th>광고주</th><th>호출</th><th>에러</th><th>마지막</th></tr></thead>
+          <thead><tr><th>키 라벨</th><th>호출</th><th>에러</th><th>마지막</th></tr></thead>
           <tbody id="byAdvBody"></tbody></table></div></div>
       </div>
       <div class="panel">
         <div class="sec-h"><h3>최근 호출 로그</h3></div>
         <div class="logscroll"><div class="tblwrap" style="border:0"><table>
-          <thead><tr><th>시간</th><th>광고주</th><th>엔드포인트</th><th>상태</th></tr></thead>
+          <thead><tr><th>시간</th><th>키</th><th>엔드포인트</th><th>상태</th></tr></thead>
           <tbody id="recentBody"></tbody></table></div></div>
       </div>
     </div>
@@ -444,49 +441,40 @@ HTML_PAGE = r"""<!doctype html>
           <li>“접속됨” 표시가 뜨면 왼쪽에 광고주 목록이 나타납니다</li>
         </ol></div></div>
 
-      <div class="gtask"><div class="h"><span class="b">B</span>신규 광고주 추가</div><div class="bd">
+      <div class="gtask"><div class="h"><span class="b">B</span>계정 단위 키 발급 (가장 흔함)</div><div class="bd">
         <ol class="gsteps">
-          <li>왼쪽 하단 <span class="gkbd">새 광고주명</span> 입력란에 이름 입력</li>
-          <li><span class="gkbd">추가</span> 클릭 (Enter도 가능) → 목록에 바로 나타남</li>
+          <li>아무 키나 선택(없으면 임시로 하나 생성) → <b>계정 검색·추가</b>에 광고계정명/번호 입력 → <span class="gkbd">검색</span></li>
+          <li>원하는 계정 줄의 <span class="gkbd">이 계정으로 키</span> 클릭 → 그 계정 1개만 담긴 키가 즉시 생성되고 시크릿이 표시됨</li>
+          <li><span class="gkbd">복사</span> → 해당 광고주에게 전달</li>
         </ol>
-        <div class="gnote">같은 이름이 있으면 새로 만들지 않고 기존 광고주를 재사용합니다.</div></div></div>
+        <div class="gnote"><b>왜 계정 단위인가</b> — “(넥서스팀) 식품_꿈비”, “(넥서스팀) 제약_ZPT”처럼 실제 광고주가 다른 계정들이 많아, 키를 계정 단위로 발급하면 데이터가 정확히 분리됩니다.</div></div></div>
 
-      <div class="gtask"><div class="h"><span class="b">C</span>계정 배정 — 광고주에 계정 넣기</div><div class="bd">
+      <div class="gtask"><div class="h"><span class="b">C</span>묶음 키 — 한 광고주의 여러 계정을 하나로</div><div class="bd">
         <ol class="gsteps">
-          <li>왼쪽에서 <b>광고주 이름 클릭</b> → 오른쪽에 상세가 열림</li>
-          <li><b>계정 검색·배정</b>에 계정명이나 번호 입력 → <span class="gkbd">검색</span></li>
-          <li>원하는 계정의 <span class="gkbd">배정</span> 클릭 → “배정된 광고계정”에 추가됨</li>
-          <li>계정이 여러 개면 반복 (한 광고주에 여러 계정 가능)</li>
-        </ol>
-        <div class="gnote warn"><b>배정 전 확인</b> — 자동 생성된 광고주는 계정명 접두로 묶여 있어 드물게 다른
-        회사가 섞일 수 있습니다(대기업 계열사). 키를 주기 전 배정 계정이 정말 그 광고주 것인지 확인하세요.</div></div></div>
-
-      <div class="gtask"><div class="h"><span class="b">D</span>계정 해제</div><div class="bd">
-        <ol class="gsteps">
-          <li>“배정된 광고계정”에서 해당 줄의 <span class="gkbd">해제</span> 클릭</li>
-          <li>즉시 빠집니다. 필요하면 다른 광고주에 다시 배정</li>
+          <li>왼쪽 하단 <span class="gkbd">새 키 라벨</span>에 이름 입력(예: “넥슨 전체”) → <span class="gkbd">생성</span></li>
+          <li><b>계정 검색·추가</b>에서 계정들을 <span class="gkbd">추가</span>로 하나씩 담기</li>
+          <li>키 하나로 담긴 모든 계정 데이터를 조회합니다</li>
         </ol></div></div>
 
-      <div class="gtask"><div class="h"><span class="b">E</span>API 키 발급</div><div class="bd">
+      <div class="gtask"><div class="h"><span class="b">D</span>계정 제거 / 시크릿 재발급</div><div class="bd">
         <ol class="gsteps">
-          <li>광고주 선택 → 배정 계정이 맞는지 확인</li>
-          <li><b>API 키</b> 섹션의 <span class="gkbd">+ 새 키 발급</span> 클릭</li>
-          <li>표시된 키를 <span class="gkbd">복사</span> → 광고주에게 안전하게 전달</li>
-        </ol>
-        <div class="gnote danger"><b>주의</b> — 키는 이 순간 딱 한 번만 보입니다. 놓쳤으면 폐기하고 새로 발급하세요.</div></div></div>
-
-      <div class="gtask"><div class="h"><span class="b">F</span>API 키 폐기</div><div class="bd">
-        <ol class="gsteps">
-          <li>키 목록에서 <span class="gkbd">폐기</span> 클릭 → 확인</li>
-          <li>즉시 무효(401). 되돌릴 수 없으며, 필요하면 새 키를 발급하면 됩니다</li>
+          <li>“이 키의 광고계정”에서 <span class="gkbd">제거</span> → 스코프에서 빠짐</li>
+          <li>시크릿이 유출됐으면 <span class="gkbd">시크릿 재발급</span> → 새 시크릿 발급, 이전 것은 즉시 무효</li>
         </ol></div></div>
 
-      <div class="gtask"><div class="h"><span class="b">G</span>사용 현황 보기</div><div class="bd">
+      <div class="gtask"><div class="h"><span class="b">E</span>키 폐기</div><div class="bd">
+        <ol class="gsteps">
+          <li>키 선택 → <span class="gkbd">키 폐기</span> → 확인</li>
+          <li>즉시 무효(401). 되돌릴 수 없으며, 필요하면 새 키를 만들면 됩니다</li>
+        </ol>
+        <div class="gnote danger"><b>주의</b> — 시크릿은 발급/재발급 순간 딱 한 번만 보입니다. 놓쳤으면 재발급하세요.</div></div></div>
+
+      <div class="gtask"><div class="h"><span class="b">F</span>사용 현황 보기</div><div class="bd">
         <ol class="gsteps">
           <li>상단 <span class="gkbd">사용 현황</span> 탭 → 오늘·7일 호출, 활성 광고주, 에러율 확인</li>
           <li>기간 토글(14/30/90일)로 차트와 광고주별 표를 함께 전환</li>
-          <li><span class="gkbd">CSV 내보내기</span>로 광고주별 사용량을 엑셀에서 열 수 있게 저장</li>
-          <li>개별 광고주의 사용량은 <b>관리</b> 탭에서 광고주를 선택하면 미니 차트로 보입니다</li>
+          <li><span class="gkbd">CSV 내보내기</span>로 키별 사용량을 엑셀에서 열 수 있게 저장</li>
+          <li>개별 키의 사용량은 <b>관리</b> 탭에서 키를 선택하면 미니 차트로 보입니다</li>
         </ol></div></div>
     </div>
 
@@ -543,8 +531,8 @@ GET https://naver-gfa.vercel.app/v1/reports?date_from=2026-06-01&amp;date_to=202
 
 <script>
 let TOKEN = sessionStorage.getItem("adminToken") || "";
-let CUR = null;
-let ADVS = [];
+let CUR = null;      // 선택된 키 {id,label}
+let KEYS = [];
 document.getElementById("token").value = TOKEN;
 
 function toast(msg, type){ const t=document.getElementById("toast"); t.textContent=msg;
@@ -564,92 +552,94 @@ async function api(method, path, body){
 async function saveToken(){
   TOKEN=document.getElementById("token").value.trim();
   sessionStorage.setItem("adminToken", TOKEN);
-  try{ await api("GET","/admin/api/me"); setStatus("접속됨", "on"); loadAdvertisers(); }
+  try{ await api("GET","/admin/api/me"); setStatus("접속됨", "on"); loadKeys(); }
   catch{ setStatus("인증 실패", "err"); }
 }
 
-async function loadAdvertisers(){ const {data}=await api("GET","/admin/api/advertisers"); ADVS=data; renderAdvertisers(); }
-function renderAdvertisers(){
-  const term=(document.getElementById("advSearch").value||"").trim().toLowerCase();
-  const sort=document.getElementById("advSort").value;
-  let list=ADVS.slice();
-  if(term) list=list.filter(a=>(a.name||"").toLowerCase().includes(term));
-  const byName=(a,b)=>(a.name||"").localeCompare(b.name||"","ko");
-  const cmp={ name:byName, accounts:(a,b)=>(b.accounts-a.accounts)||byName(a,b),
-    keys:(a,b)=>(b.active_keys-a.active_keys)||byName(a,b), recent:(a,b)=>b.id-a.id }[sort]||byName;
+/* ── 키 목록 ── */
+async function loadKeys(){ const {data}=await api("GET","/admin/api/keys"); KEYS=data; renderKeys(); }
+function renderKeys(){
+  const term=(document.getElementById("keySearch").value||"").trim().toLowerCase();
+  const sort=document.getElementById("keySort").value;
+  let list=KEYS.slice();
+  if(term) list=list.filter(k=>(k.label||"").toLowerCase().includes(term));
+  const byLabel=(a,b)=>(a.label||"").localeCompare(b.label||"","ko");
+  const cmp={ label:byLabel, accounts:(a,b)=>(b.accounts-a.accounts)||byLabel(a,b),
+    recent:(a,b)=>b.id-a.id }[sort]||((a,b)=>b.id-a.id);
   list.sort(cmp);
-  document.getElementById("advCount").textContent=`총 ${ADVS.length}개`+(term?` · ${list.length} 검색`:"");
-  document.getElementById("advList").innerHTML = list.map(a=>
-    `<div class="adv-item ${CUR&&CUR.id===a.id?'active':''}" onclick="selectAdvertiser(${a.id})">
-       <span class="nm">${esc(a.name)}</span>
-       <span class="meta">계정 ${a.accounts} · 키 ${a.active_keys}</span></div>`).join("")
-    || `<div class="adv-empty">검색 결과 없음</div>`;
+  document.getElementById("keyCount").textContent=`총 ${KEYS.length}개`+(term?` · ${list.length} 검색`:"");
+  document.getElementById("keyList").innerHTML = list.map(k=>
+    `<div class="adv-item ${CUR&&CUR.id===k.id?'active':''}" onclick="selectKey(${k.id})">
+       <span class="nm">${esc(k.label)} ${k.status==='revoked'?'<span class="pill revoked" style="margin-left:4px">revoked</span>':''}</span>
+       <span class="meta">계정 ${k.accounts}</span></div>`).join("")
+    || `<div class="adv-empty">${KEYS.length?'검색 결과 없음':'키가 없습니다. 아래에서 생성하세요.'}</div>`;
 }
-async function createAdvertiser(){
-  const el=document.getElementById("newAdv"); const name=el.value.trim(); if(!name) return;
-  await api("POST","/admin/api/advertisers",{name}); el.value="";
-  await loadAdvertisers(); toast("광고주 추가됨");
+async function createKey(){
+  const el=document.getElementById("newKeyLabel"); const label=el.value.trim(); if(!label) return;
+  const r=await api("POST","/admin/api/keys",{label}); el.value="";
+  await loadKeys(); selectKey(r.id); showSecret(r.api_key); toast("키 생성됨");
 }
-async function selectAdvertiser(id){
-  const adv=ADVS.find(a=>a.id===id); CUR={id, name:adv?adv.name:String(id)};
+async function selectKey(id){
+  CUR={id};
   document.getElementById("empty").style.display="none";
   document.getElementById("detail").style.display="block";
-  document.getElementById("advTitle").textContent=CUR.name;
   document.getElementById("newKey").innerHTML="";
   document.getElementById("searchBody").innerHTML=`<tr><td colspan="4" class="cell-empty">검색어를 입력하세요</td></tr>`;
-  renderAdvertisers(); loadAssigned(); loadKeys(); loadAdvertiserUsage();
+  renderKeys(); loadKeyDetail(); loadKeyUsage();
 }
-async function loadAssigned(){
-  const {data}=await api("GET",`/admin/api/advertisers/${CUR.id}/accounts`);
-  document.getElementById("tileAccounts").textContent=data.length;
-  document.getElementById("assignedBody").innerHTML = data.map(a=>
+async function loadKeyDetail(){
+  const d=await api("GET",`/admin/api/keys/${CUR.id}`);
+  CUR.label=d.label; CUR.status=d.status;
+  document.getElementById("keyTitle").textContent=d.label;
+  document.getElementById("keyPrefix").textContent=d.key_prefix?d.key_prefix+"…":"";
+  document.getElementById("keyStatus").innerHTML=
+    `<span class="pill ${d.status==='revoked'?'revoked':'active'}">${d.status}</span>`;
+  document.getElementById("tileAccounts").textContent=d.accounts.length;
+  document.getElementById("revokeBtn").style.display = d.status==='active'?'':'none';
+  document.getElementById("scopeBody").innerHTML = d.accounts.map(a=>
     `<tr><td class="num">${a.naver_account_no}</td>
      <td class="name">${esc(a.account_name)||'<span style="color:var(--faint)">(미보강)</span>'}</td>
      <td style="color:var(--muted)">${esc(a.manager_account_name)||'—'}</td>
-     <td style="text-align:right"><button class="btn btn-danger btn-sm" onclick="unassign(${a.naver_account_no})">해제</button></td></tr>`).join("")
-    || `<tr><td colspan="4" class="cell-empty">배정된 계정이 없습니다</td></tr>`;
+     <td style="text-align:right"><button class="btn btn-danger btn-sm" onclick="removeAccount(${a.naver_account_no})">제거</button></td></tr>`).join("")
+    || `<tr><td colspan="4" class="cell-empty">담긴 계정이 없습니다. 아래에서 검색·추가하세요.</td></tr>`;
 }
 async function searchAccounts(){
   const q=document.getElementById("q").value.trim();
-  const f=document.getElementById("assignedFilter").value;
-  const {data}=await api("GET",`/admin/api/accounts?q=${encodeURIComponent(q)}&assigned=${f}&size=30`);
+  const {data}=await api("GET",`/admin/api/accounts?q=${encodeURIComponent(q)}&size=30`);
   document.getElementById("searchBody").innerHTML = data.map(a=>
     `<tr><td class="num">${a.naver_account_no}</td>
      <td class="name">${esc(a.account_name)||'<span style="color:var(--faint)">(미보강)</span>'}</td>
-     <td>${a.advertiser_name?esc(a.advertiser_name):'<span style="color:var(--faint)">미배정</span>'}</td>
-     <td style="text-align:right"><button class="btn btn-primary btn-sm" onclick="assign(${a.naver_account_no})">배정</button></td></tr>`).join("")
+     <td class="num">${a.key_count||0}</td>
+     <td style="text-align:right"><button class="btn btn-primary btn-sm" onclick="addAccount(${a.naver_account_no})">추가</button>
+       <button class="btn btn-sm" onclick="quickKey(${a.naver_account_no}, ${JSON.stringify(esc(a.account_name||('계정 '+a.naver_account_no)))})">이 계정으로 키</button></td></tr>`).join("")
     || `<tr><td colspan="4" class="cell-empty">결과 없음</td></tr>`;
 }
-async function assign(no){ await api("POST",`/admin/api/advertisers/${CUR.id}/accounts`,{account_nos:[no]});
-  loadAssigned(); searchAccounts(); loadAdvertisers(); toast("계정 배정됨"); }
-async function unassign(no){ await api("DELETE",`/admin/api/advertisers/${CUR.id}/accounts/${no}`);
-  loadAssigned(); loadAdvertisers(); toast("계정 해제됨"); }
-
-async function loadKeys(){
-  const {data}=await api("GET",`/admin/api/advertisers/${CUR.id}/keys`);
-  document.getElementById("tileKeys").textContent=data.filter(k=>k.status==="active").length;
-  document.getElementById("keysBody").innerHTML = data.map(k=>
-    `<tr><td class="mono">${k.key_prefix}</td>
-     <td><span class="pill ${k.status==='revoked'?'revoked':'active'}">${k.status}</span></td>
-     <td style="color:var(--muted)">${k.last_used_at?k.last_used_at.slice(0,10):'—'}</td>
-     <td style="text-align:right">${k.status==='active'?`<button class="btn btn-danger btn-sm" onclick="revoke(${k.id})">폐기</button>`:''}</td></tr>`).join("")
-    || `<tr><td colspan="4" class="cell-empty">발급된 키가 없습니다</td></tr>`;
+async function addAccount(no){ await api("POST",`/admin/api/keys/${CUR.id}/accounts`,{account_nos:[no]});
+  loadKeyDetail(); searchAccounts(); loadKeys(); toast("계정 추가됨"); }
+async function removeAccount(no){ await api("DELETE",`/admin/api/keys/${CUR.id}/accounts/${no}`);
+  loadKeyDetail(); loadKeys(); toast("계정 제거됨"); }
+async function quickKey(no, label){
+  const r=await api("POST","/admin/api/keys",{label, account_nos:[no]});
+  await loadKeys(); selectKey(r.id); showSecret(r.api_key); toast("계정 단위 키 생성됨");
 }
-async function issueKey(){
-  const {api_key}=await api("POST",`/admin/api/advertisers/${CUR.id}/keys`,{});
+function showSecret(api_key){
   document.getElementById("newKey").innerHTML =
     `<div class="keyreveal">
-       <div class="cap">⚠️ 이 키는 지금 한 번만 표시됩니다 — 광고주에게 안전하게 전달하세요</div>
+       <div class="cap">⚠️ 이 시크릿은 지금 한 번만 표시됩니다 — 광고주에게 안전하게 전달하세요</div>
        <div class="kv"><code id="freshKey">${esc(api_key)}</code>
          <button class="btn btn-sm" onclick="copyKey()">복사</button></div>
      </div>`;
-  loadKeys(); loadAdvertisers(); toast("새 키 발급됨");
 }
 function copyKey(){ const t=document.getElementById("freshKey").textContent;
-  navigator.clipboard.writeText(t).then(()=>toast("키를 복사했습니다"),()=>toast("복사 실패","err")); }
-async function revoke(id){
+  navigator.clipboard.writeText(t).then(()=>toast("시크릿을 복사했습니다"),()=>toast("복사 실패","err")); }
+async function reissue(){
+  if(!confirm("시크릿을 재발급하면 이전 시크릿은 즉시 무효화됩니다. 진행할까요?")) return;
+  const r=await api("POST",`/admin/api/keys/${CUR.id}/reissue`,{}); showSecret(r.api_key);
+  loadKeyDetail(); loadKeys(); toast("시크릿 재발급됨");
+}
+async function revoke(){
   if(!confirm("이 키를 폐기하시겠습니까? 되돌릴 수 없습니다.")) return;
-  await api("POST",`/admin/api/keys/${id}/revoke`,{}); loadKeys(); loadAdvertisers(); toast("키 폐기됨","warn");
+  await api("POST",`/admin/api/keys/${CUR.id}/revoke`,{}); loadKeyDetail(); loadKeys(); toast("키 폐기됨","warn");
 }
 async function triggerEnrich(){
   try{ const r=await api("POST","/admin/api/enrich",{}); toast(r.message||"실행됨"); }
@@ -682,11 +672,11 @@ async function loadChart(days){
   renderBars(ts.data||[], "chart", 150, true);
 }
 async function loadByAdv(days){
-  const ba=await api("GET","/admin/api/usage/by-advertiser?days="+days);
+  const ba=await api("GET","/admin/api/usage/by-key?days="+days);
   BYADV=ba.data||[];
-  document.getElementById("byAdvTitle").textContent="광고주별 사용 현황 · "+days+"일";
+  document.getElementById("byAdvTitle").textContent="키별 사용 현황 · "+days+"일";
   document.getElementById("byAdvBody").innerHTML=BYADV.map(r=>
-    `<tr><td class="name">${esc(r.name)}</td>
+    `<tr><td class="name">${esc(r.label)}</td>
      <td class="num">${(r.calls||0).toLocaleString()}</td>
      <td class="num" style="color:${r.errors?'var(--red)':'var(--muted)'}">${r.errors||0}</td>
      <td style="color:var(--muted)">${fmt(r.last_call)}</td></tr>`).join("")
@@ -697,7 +687,7 @@ async function loadRecent(){
   document.getElementById("recentBody").innerHTML=(rc.data||[]).map(r=>{
     const err=r.status_code>=400;
     return `<tr><td class="mono" style="color:var(--muted);font-size:12px">${fmt(r.ts)}</td>
-     <td class="name">${r.advertiser?esc(r.advertiser):'—'}</td>
+     <td class="name">${r.key_label?esc(r.key_label):'—'}</td>
      <td class="mono" style="font-size:12px">${esc(r.endpoint)}</td>
      <td><span class="pill ${err?'revoked':'active'}" style="${err?'color:var(--red);background:var(--red-weak)':''}">${r.status_code}</span></td></tr>`;
   }).join("") || `<tr><td colspan="4" class="cell-empty">아직 호출 기록이 없습니다</td></tr>`;
@@ -709,22 +699,23 @@ function setPeriod(d){ PERIOD=d;
 function csvCell(s){ s=String(s??""); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
 function exportCSV(){
   if(!BYADV.length){ toast("내보낼 데이터가 없습니다","warn"); return; }
-  const head=["광고주","호출","에러","마지막호출"];
+  const head=["키 라벨","호출","에러","마지막호출"];
   const lines=[head.join(",")].concat(BYADV.map(r=>
-    [csvCell(r.name), r.calls||0, r.errors||0, csvCell(fmt(r.last_call))].join(",")));
+    [csvCell(r.label), r.calls||0, r.errors||0, csvCell(fmt(r.last_call))].join(",")));
   const blob=new Blob(["﻿"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
   a.download="gfa_usage_"+PERIOD+"d.csv"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
   toast("CSV를 내보냈습니다");
 }
-async function loadAdvertiserUsage(){
+async function loadKeyUsage(){
   try{
-    const u=await api("GET",`/admin/api/advertisers/${CUR.id}/usage?days=14`);
+    const u=await api("GET",`/admin/api/keys/${CUR.id}/usage?days=14`);
     const s=u.summary||{};
-    document.getElementById("advUsageMeta").textContent=
+    document.getElementById("tileCalls").textContent=(s.calls_7d||0).toLocaleString();
+    document.getElementById("keyUsageMeta").textContent=
       `7일 ${(s.calls_7d||0).toLocaleString()}회 · 30일 ${(s.calls_30d||0).toLocaleString()}회 · 마지막 ${s.last_call?fmt(s.last_call):'없음'}`;
-    renderBars(u.series||[], "advChart", 92, false);
-  }catch(e){ document.getElementById("advChart").innerHTML=""; document.getElementById("advUsageMeta").textContent=""; }
+    renderBars(u.series||[], "keyChart", 92, false);
+  }catch(e){ document.getElementById("keyChart").innerHTML=""; document.getElementById("keyUsageMeta").textContent=""; }
 }
 function renderBars(series, elId, h, showAxis){
   const pad=14, n=Math.max(series.length,1);
