@@ -70,6 +70,11 @@ def create_key(body: dict, _: None = Depends(require_admin)) -> dict:
                 label = (nm or "").strip() or f"계정 {account_nos[0]}"
             else:
                 raise HTTPException(400, "label required")
+        dup = conn.execute(
+            text("SELECT id FROM api_keys WHERE label = :l LIMIT 1"), {"l": label}
+        ).scalar()
+        if dup:
+            raise HTTPException(409, f"이미 '{label}' 라는 이름의 그룹이 있습니다.")
         kid = conn.execute(
             text(
                 "INSERT INTO api_keys (label, key_prefix, key_hash) "

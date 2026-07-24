@@ -284,7 +284,7 @@ HTML_PAGE = r"""<!doctype html>
 <div class="shell">
   <!-- 사이드바: API 키 -->
   <aside class="panel sidebar">
-    <div class="side-head"><h2>API 키</h2><span id="keyCount" class="count"></span></div>
+    <div class="side-head"><h2>키 관리 그룹</h2><span id="keyCount" class="count"></span></div>
     <div class="toolbar">
       <input id="keySearch" placeholder="키 라벨 검색" oninput="renderKeys()">
       <select id="keySort" onchange="renderKeys()">
@@ -296,10 +296,10 @@ HTML_PAGE = r"""<!doctype html>
     <div id="keyList" class="advscroll"></div>
     <div class="side-foot">
       <div class="newrow">
-        <input id="newKeyLabel" placeholder="새 키 라벨 (예: 아이리움안과)" onkeydown="if(event.key==='Enter')createKey()">
+        <input id="newKeyLabel" placeholder="새 그룹 이름 (예: 넥슨)" onkeydown="if(event.key==='Enter')createKey()">
         <button class="btn btn-primary" onclick="createKey()">생성</button>
       </div>
-      <div class="hint" style="font-size:11.5px;color:var(--faint);margin-top:6px">빈 키를 만든 뒤 계정을 담거나, 계정 검색에서 “이 계정으로 키” 로 바로 발급하세요.</div>
+      <div class="hint" style="font-size:11.5px;color:var(--faint);margin-top:6px">빈 그룹을 만든 뒤 계정을 담거나, 계정 검색에서 “개별 키 발급” 으로 바로 만드세요.</div>
       <div class="maint">
         <div class="lbl">유지보수</div>
         <button class="btn" onclick="triggerEnrich()">전체 계정 이름 보강</button>
@@ -312,12 +312,12 @@ HTML_PAGE = r"""<!doctype html>
   <main class="workspace">
     <div id="empty" class="empty-state">
       <div class="big"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></svg></div>
-      <p>왼쪽에서 키를 선택하거나 새로 생성하세요. 계정을 담아 광고주에게 발급합니다.</p>
+      <p>왼쪽에서 관리 그룹을 선택하거나 새로 생성하세요. 계정을 담아 광고주에게 키를 발급합니다.</p>
     </div>
 
     <div id="detail" class="panel" style="display:none">
       <div class="dhead">
-        <div class="ey">API 키 · <span id="keyStatus"></span></div>
+        <div class="ey">키 관리 그룹 · <span id="keyStatus"></span></div>
         <h1 id="keyTitle"></h1>
         <div class="count mono" id="keyPrefix" style="margin-top:4px"></div>
       </div>
@@ -576,14 +576,19 @@ function renderKeys(){
     `<div class="adv-item ${CUR&&CUR.id===k.id?'active':''}" onclick="selectKey(${k.id})">
        <span class="nm">${esc(k.label)} ${k.status==='revoked'?'<span class="pill revoked" style="margin-left:4px">revoked</span>':''}</span>
        <span class="meta">계정 ${k.accounts}
-         <button class="keydel" title="키 삭제" onclick="event.stopPropagation();deleteKey(${k.id})">&times;</button></span>
+         <button class="keydel" title="그룹 삭제" onclick="event.stopPropagation();deleteKey(${k.id})">&times;</button></span>
      </div>`).join("")
     || `<div class="adv-empty">${KEYS.length?'검색 결과 없음':'키가 없습니다. 아래에서 생성하세요.'}</div>`;
 }
+function dupExists(label){ return KEYS.some(k=>(k.label||"")===label); }
+function errDetail(e){ try{ return JSON.parse(e.message).detail || e.message; }catch{ return e.message; } }
 async function createKey(){
   const el=document.getElementById("newKeyLabel"); const label=el.value.trim(); if(!label) return;
-  const r=await api("POST","/admin/api/keys",{label}); el.value="";
-  await loadKeys(); selectKey(r.id); showSecret(r.api_key); toast("키 생성됨");
+  if(dupExists(label)){ alert(`이미 '${label}' 라는 이름의 그룹이 있습니다.`); return; }
+  try{
+    const r=await api("POST","/admin/api/keys",{label}); el.value="";
+    await loadKeys(); selectKey(r.id); showSecret(r.api_key); toast("그룹 생성됨");
+  }catch(e){ alert(errDetail(e)); }
 }
 async function selectKey(id){
   CUR={id};
@@ -609,15 +614,17 @@ async function loadKeyDetail(){
      <td style="text-align:right"><button class="btn btn-danger btn-sm" onclick="removeAccount(${a.naver_account_no})">제거</button></td></tr>`).join("")
     || `<tr><td colspan="4" class="cell-empty">담긴 계정이 없습니다. 아래에서 검색·추가하세요.</td></tr>`;
 }
+let SR=[];
 async function searchAccounts(){
   const q=document.getElementById("q").value.trim();
   const {data}=await api("GET",`/admin/api/accounts?q=${encodeURIComponent(q)}&size=30`);
+  SR=data;
   document.getElementById("searchBody").innerHTML = data.map(a=>
     `<tr><td class="num">${a.naver_account_no}</td>
      <td class="name">${esc(a.account_name)||'<span style="color:var(--faint)">(미보강)</span>'}</td>
      <td class="num">${a.key_count||0}</td>
      <td style="text-align:right"><button class="btn btn-primary btn-sm" onclick="addAccount(${a.naver_account_no})">추가</button>
-       <button class="btn btn-sm" onclick="quickKey(${a.naver_account_no})">이 계정으로 키</button></td></tr>`).join("")
+       <button class="btn btn-sm" onclick="quickKey(${a.naver_account_no})">개별 키 발급</button></td></tr>`).join("")
     || `<tr><td colspan="4" class="cell-empty">결과 없음</td></tr>`;
 }
 async function addAccount(no){ await api("POST",`/admin/api/keys/${CUR.id}/accounts`,{account_nos:[no]});
@@ -625,17 +632,22 @@ async function addAccount(no){ await api("POST",`/admin/api/keys/${CUR.id}/accou
 async function removeAccount(no){ await api("DELETE",`/admin/api/keys/${CUR.id}/accounts/${no}`);
   loadKeyDetail(); loadKeys(); toast("계정 제거됨"); }
 async function quickKey(no){
-  const r=await api("POST","/admin/api/keys",{account_nos:[no]});  // 라벨은 서버가 계정명으로 자동 생성
-  await loadKeys(); selectKey(r.id); showSecret(r.api_key); toast("계정 단위 키 생성됨");
+  const acc=SR.find(x=>x.naver_account_no===no)||{};
+  const label=(acc.account_name||"").trim()||("계정 "+no);
+  if(dupExists(label)){ alert(`이미 '${label}' 라는 이름의 그룹이 있습니다.`); return; }
+  try{
+    const r=await api("POST","/admin/api/keys",{account_nos:[no]});  // 라벨은 서버가 계정명으로 자동 생성
+    await loadKeys(); selectKey(r.id); showSecret(r.api_key); toast("개별 그룹 생성됨");
+  }catch(e){ alert(errDetail(e)); }
 }
 async function deleteKey(id){
   const k=KEYS.find(x=>x.id===id);
-  if(!confirm(`키 '${k?k.label:id}' 를 삭제할까요? 기록까지 완전히 제거되며 되돌릴 수 없습니다.`)) return;
+  if(!confirm(`그룹 '${k?k.label:id}' 를 삭제할까요? 기록까지 완전히 제거되며 되돌릴 수 없습니다.`)) return;
   await api("DELETE",`/admin/api/keys/${id}`,{});
   if(CUR&&CUR.id===id){ CUR=null;
     document.getElementById("detail").style.display="none";
     document.getElementById("empty").style.display=""; }
-  loadKeys(); toast("키 삭제됨","warn");
+  loadKeys(); toast("그룹 삭제됨","warn");
 }
 function showSecret(api_key){
   document.getElementById("newKey").innerHTML =
