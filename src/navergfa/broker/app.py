@@ -187,18 +187,3 @@ def get_reports(
         )
     _audit(auth, request, 200, {"account_no": account_no, "from": date_from, "to": date_to})
     return {"data": [dict(r) for r in rows], **_coverage(targets)}
-
-
-# ── 임시 진단(라우팅 확인용). 원인 확정 후 제거 예정 ──
-# 모든 라우트 정의 뒤에 위치해야 실제 라우트를 가리지 않는다.
-@app.get("/{_diag_path:path}")
-def _diag(_diag_path: str, request: Request) -> dict[str, Any]:
-    return {
-        "_diag": "route-not-matched",
-        "path": request.scope.get("path"),
-        "raw_path": str(request.scope.get("raw_path")),
-        "root_path": request.scope.get("root_path"),
-        "registered": sorted(
-            {getattr(r, "path", "") for r in app.routes if getattr(r, "path", "")}
-        ),
-    }
