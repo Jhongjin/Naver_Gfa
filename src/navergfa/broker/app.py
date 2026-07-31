@@ -147,6 +147,7 @@ def get_reports(
     date_from: date = Query(...),
     date_to: date = Query(...),
     account_no: int | None = Query(None, description="미지정 시 스코프 전체"),
+    level: str = Query("campaign", description="campaign | adset | creative"),
     auth: dict = Depends(authenticate),
 ) -> dict[str, Any]:
     scope = set(auth["accounts"])
@@ -161,29 +162,88 @@ def get_reports(
     else:
         targets = sorted(scope)
 
+    if level not in ("campaign", "adset", "creative"):
+        raise HTTPException(status_code=400, detail="level must be campaign|adset|creative")
+
     # 계정 기준 RLS(app.allowed_accounts) + 명시 필터 이중 방어
     with account_scoped_connection(targets) as conn:
         rows = (
             conn.execute(
                 text(
                     """
-                    SELECT stat_date, naver_account_no, campaign_id,
-                           sum(impressions) AS impressions,
-                           sum(clicks)      AS clicks,
-                           sum(cost)        AS cost,
-                           sum(conversions) AS conversions,
-                           sum(conv_value)  AS conv_value
-                      FROM report_facts
-                     WHERE naver_account_no = ANY(:targets)
-                       AND stat_date BETWEEN :d1 AND :d2
-                  GROUP BY stat_date, naver_account_no, campaign_id
-                  ORDER BY stat_date, naver_account_no, campaign_id
+                    SELECT f.stat_date, f.naver_account_no, f.level,
+                           f.campaign_id, ec.name AS campaign_name,
+                           NULLIF(f.ad_group_id, 0) AS ad_group_id, eg.name AS ad_group_name,
+                           NULLIF(f.ad_id, 0)       AS ad_id,       ea.name AS ad_name,
+                           f.impressions, f.clicks, f.cost,
+                           f.conversions, f.conv_value, f.views
+                      FROM report_facts f
+                      LEFT JOIN ad_entities ec ON ec.naver_account_no = f.naver_account_no
+                           AND ec.level = 'campaign' AND ec.entity_no = f.campaign_id
+                      LEFT JOIN ad_entities eg ON eg.naver_account_no = f.naver_account_no
+                           AND eg.level = 'adset'    AND eg.entity_no = f.ad_group_id
+                      LEFT JOIN ad_entities ea ON ea.naver_account_no = f.naver_account_no
+                           AND ea.level = 'creative' AND ea.entity_no = f.ad_id
+                     WHERE f.naver_account_no = ANY(:targets)
+                       AND f.level = :level
+                       AND f.stat_date BETWEEN :d1 AND :d2
+                  ORDER BY f.stat_date, f.naver_account_no, f.campaign_id, f.ad_group_id, f.ad_id
                     """
                 ),
-                {"targets": targets, "d1": date_from, "d2": date_to},
+                {"targets": targets, "d1": date_from, "d2": date_to, "level": level},
             )
             .mappings()
             .all()
         )
-    _audit(auth, request, 200, {"account_no": account_no, "from": date_from, "to": date_to})
-    return {"data": [dict(r) for r in rows], **_coverage(targets)}
+    _audit(auth, request, 200,
+           {"account_no": account_no, "from": date_from, "to": date_to, "level": level})
+    return {"data": [dict(r) for r in rows], "level": level, **_coverage(targets)}
+
+
+@app.get("/v1/conversions")
+def get_conversions(
+    request: Request,
+    date_from: date = Query(...),
+    date_to: date = Query(...),
+    account_no: int | None = Query(None, description="미지정 시 스코프 전체"),
+    level: str = Query("campaign", description="campaign | adset | creative"),
+    auth: dict = Depends(authenticate),
+) -> dict[str, Any]:
+    """전환 타입별 breakdown(장바구니/구매 등). 계정에 전환 수집이 켜져 있어야 데이터가 있다."""
+    scope = set(auth["accounts"])
+    if not scope:
+        raise HTTPException(status_code=403, detail="key has no accounts in scope")
+    if account_no is not None:
+        if account_no not in scope:
+            _audit(auth, request, 403, {"account_no": account_no})
+            raise HTTPException(status_code=403, detail="account not in key scope")
+        targets = [account_no]
+    else:
+        targets = sorted(scope)
+    if level not in ("campaign", "adset", "creative"):
+        raise HTTPException(status_code=400, detail="level must be campaign|adset|creative")
+
+    with account_scoped_connection(targets) as conn:
+        rows = (
+            conn.execute(
+                text(
+                    """
+                    SELECT stat_date, naver_account_no, level, campaign_id,
+                           NULLIF(ad_group_id, 0) AS ad_group_id,
+                           NULLIF(ad_id, 0)       AS ad_id,
+                           conv_type, conversions, conv_value
+                      FROM conversion_facts
+                     WHERE naver_account_no = ANY(:targets)
+                       AND level = :level
+                       AND stat_date BETWEEN :d1 AND :d2
+                  ORDER BY stat_date, naver_account_no, campaign_id, conv_type
+                    """
+                ),
+                {"targets": targets, "d1": date_from, "d2": date_to, "level": level},
+            )
+            .mappings()
+            .all()
+        )
+    _audit(auth, request, 200,
+           {"account_no": account_no, "from": date_from, "to": date_to, "level": level})
+    return {"data": [dict(r) for r in rows], "level": level, **_coverage(targets)}

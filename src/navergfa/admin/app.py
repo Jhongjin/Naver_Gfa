@@ -101,6 +101,51 @@ def delete_key(key_id: int, _: None = Depends(require_admin)) -> dict:
     return {"ok": True}
 
 
+@router.patch("/admin/api/accounts/{no}/granularity")
+def set_granularity(no: int, body: dict, _: None = Depends(require_admin)) -> dict:
+    """계정별 수집 세밀도 스위치.
+
+    granularity: campaign | adset | creative (사다리식 — 상위 선택 시 하위까지 수집)
+    collect_conversions: 전환 타입 breakdown 수집 여부
+    변경 시 sync 상태를 리셋해 다음 수집에서 해당 레벨을 소급 백필한다.
+    """
+    g = (body.get("granularity") or "").strip()
+    if g not in ("campaign", "adset", "creative"):
+        raise HTTPException(400, "granularity must be campaign|adset|creative")
+    conv = bool(body.get("collect_conversions"))
+    with engine.begin() as conn:
+        cur = conn.execute(
+            text(
+                "SELECT granularity, collect_conversions FROM naver_accounts "
+                "WHERE naver_account_no = :n"
+            ),
+            {"n": no},
+        ).mappings().first()
+        if not cur:
+            raise HTTPException(404, "account not found")
+        conn.execute(
+            text(
+                "UPDATE naver_accounts SET granularity = :g, collect_conversions = :c, "
+                "updated_at = now() WHERE naver_account_no = :n"
+            ),
+            {"g": g, "c": conv, "n": no},
+        )
+        # 세밀도를 올렸으면 새 레벨은 과거 데이터가 없으므로 백필을 다시 돌게 한다
+        widened = (
+            ["campaign", "adset", "creative"].index(g)
+            > ["campaign", "adset", "creative"].index(cur["granularity"] or "campaign")
+        ) or (conv and not cur["collect_conversions"])
+        if widened:
+            conn.execute(
+                text(
+                    "UPDATE account_sync_state SET backfilled_from = NULL "
+                    "WHERE naver_account_no = :n"
+                ),
+                {"n": no},
+            )
+    return {"ok": True, "granularity": g, "collect_conversions": conv, "backfill_queued": widened}
+
+
 @router.get("/admin/api/keys/{key_id}")
 def key_detail(key_id: int, _: None = Depends(require_admin)) -> dict:
     with engine.begin() as conn:
@@ -116,7 +161,9 @@ def key_detail(key_id: int, _: None = Depends(require_admin)) -> dict:
         accts = conn.execute(
             text(
                 """
-                SELECT ka.naver_account_no, n.account_name, n.manager_account_name
+                SELECT ka.naver_account_no, n.account_name, n.manager_account_name,
+                       COALESCE(n.granularity,'campaign')   AS granularity,
+                       COALESCE(n.collect_conversions,false) AS collect_conversions
                   FROM key_accounts ka
                   LEFT JOIN naver_accounts n ON n.naver_account_no = ka.naver_account_no
                  WHERE ka.api_key_id = :id

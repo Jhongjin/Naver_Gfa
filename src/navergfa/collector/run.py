@@ -1,12 +1,17 @@
 """수집 배치 진입점.
 
 - 기본: 관리계정 트리에서 광고계정을 발견해 naver_accounts 에 upsert.
-- --reports: 배정된(advertiser_id 있음) 계정의 캠페인 성과를 report_facts 에 적재.
+- --reports: 활성 키에 담긴 계정의 성과를 적재.
+    · 계정별 수집 세밀도(naver_accounts.granularity)에 따라
+      campaign / adset / creative 레벨을 수집(사다리식).
+    · collect_conversions=true 면 전환 타입 breakdown 도 수집.
+    · 신규 계정 자동 백필 + 갭 자동 복구 + 31일 청크 분할.
+    · 엔티티(캠페인/광고그룹/소재) 이름은 주 1회 동기화.
 
 실행:
-  python -m src.navergfa.collector.run                 # 계정 트리 동기화
-  python -m src.navergfa.collector.run --reports        # 성과 수집(최근 7일)
-  python -m src.navergfa.collector.run --reports --days 31
+  python -m src.navergfa.collector.run                  # 계정 트리 동기화
+  python -m src.navergfa.collector.run --reports         # 성과 수집
+  python -m src.navergfa.collector.run --reports --days 3 --backfill-days 90
 """
 from __future__ import annotations
 
@@ -20,29 +25,87 @@ from ..config import settings
 from ..db.engine import account_scoped_connection, engine
 from ..naver.accounts import extract_ad_accounts, fetch_manager_account_tree
 from ..naver.client import NaverAdApiClient
-from ..naver.reports import fetch_campaign_performance, to_fact
+from ..naver.entities import fetch_entities
+from ..naver.reports import (
+    GRANULARITY_LEVELS,
+    fetch_conversion,
+    fetch_performance,
+    to_conversion_fact,
+    to_fact,
+)
 
 # 네이버 관리계정 한도 60회/분 → 호출 간 최소 간격(초)
 _RATE_DELAY = 1.1
+# 엔티티 이름 재동기화 주기(일)
+_ENTITY_TTL_DAYS = 7
 
 _UPSERT_FACT = text(
     """
     INSERT INTO report_facts
-        (naver_account_no, stat_date, campaign_id, ad_group_id, ad_id,
-         impressions, clicks, cost, conversions, conv_value, updated_at)
+        (naver_account_no, level, stat_date, campaign_id, ad_group_id, ad_id,
+         impressions, clicks, cost, conversions, conv_value, views, updated_at)
     VALUES
-        (:naver_account_no, :stat_date, :campaign_id, :ad_group_id, :ad_id,
-         :impressions, :clicks, :cost, :conversions, :conv_value, now())
-    ON CONFLICT (naver_account_no, stat_date, campaign_id, ad_id) DO UPDATE SET
+        (:naver_account_no, :level, :stat_date, :campaign_id, :ad_group_id, :ad_id,
+         :impressions, :clicks, :cost, :conversions, :conv_value, :views, now())
+    ON CONFLICT (naver_account_no, stat_date, level, campaign_id, ad_group_id, ad_id) DO UPDATE SET
         impressions = EXCLUDED.impressions,
         clicks      = EXCLUDED.clicks,
         cost        = EXCLUDED.cost,
         conversions = EXCLUDED.conversions,
         conv_value  = EXCLUDED.conv_value,
-        ad_group_id = EXCLUDED.ad_group_id,
+        views       = EXCLUDED.views,
         updated_at  = now()
     """
 )
+
+_UPSERT_CONV = text(
+    """
+    INSERT INTO conversion_facts
+        (naver_account_no, level, stat_date, campaign_id, ad_group_id, ad_id,
+         conv_type, conversions, conv_value, updated_at)
+    VALUES
+        (:naver_account_no, :level, :stat_date, :campaign_id, :ad_group_id, :ad_id,
+         :conv_type, :conversions, :conv_value, now())
+    ON CONFLICT (naver_account_no, stat_date, level, campaign_id, ad_group_id, ad_id, conv_type)
+    DO UPDATE SET
+        conversions = EXCLUDED.conversions,
+        conv_value  = EXCLUDED.conv_value,
+        updated_at  = now()
+    """
+)
+
+_UPSERT_ENTITY = text(
+    """
+    INSERT INTO ad_entities (naver_account_no, level, entity_no, name, updated_at)
+    VALUES (:naver_account_no, :level, :entity_no, :name, now())
+    ON CONFLICT (naver_account_no, level, entity_no) DO UPDATE SET
+        name = EXCLUDED.name, updated_at = now()
+    """
+)
+
+_UPSERT_STATE = text(
+    """
+    INSERT INTO account_sync_state (naver_account_no, backfilled_from, last_collected_to, updated_at)
+    VALUES (:no, :start, :end, now())
+    ON CONFLICT (naver_account_no) DO UPDATE SET
+        last_collected_to = GREATEST(
+            COALESCE(account_sync_state.last_collected_to, EXCLUDED.last_collected_to),
+            EXCLUDED.last_collected_to),
+        backfilled_from = LEAST(
+            COALESCE(account_sync_state.backfilled_from, EXCLUDED.backfilled_from),
+            EXCLUDED.backfilled_from),
+        updated_at = now()
+    """
+)
+
+
+def _date_chunks(start: date, end: date, size: int = 31):
+    """네이버 성과 API는 한 번에 최대 31일 → 기간을 청크로 분할."""
+    cur = start
+    while cur <= end:
+        stop = min(cur + timedelta(days=size - 1), end)
+        yield cur, stop
+        cur = stop + timedelta(days=1)
 
 
 async def sync_accounts() -> list[dict]:
@@ -85,42 +148,51 @@ async def sync_accounts() -> list[dict]:
     return accounts
 
 
-def _date_chunks(start: date, end: date, size: int = 31):
-    """네이버 성과 API는 한 번에 최대 31일 → 기간을 청크로 분할."""
-    cur = start
-    while cur <= end:
-        stop = min(cur + timedelta(days=size - 1), end)
-        yield cur, stop
-        cur = stop + timedelta(days=1)
+def _log_error(no: int, msg: str) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO collector_runs (job, naver_account_no, started_at, "
+                "finished_at, status, error) VALUES "
+                "('reports', :no, now(), now(), 'error', :err)"
+            ),
+            {"no": no, "err": msg[:500]},
+        )
 
 
-_UPSERT_STATE = text(
-    """
-    INSERT INTO account_sync_state (naver_account_no, backfilled_from, last_collected_to, updated_at)
-    VALUES (:no, :start, :end, now())
-    ON CONFLICT (naver_account_no) DO UPDATE SET
-        last_collected_to = GREATEST(
-            COALESCE(account_sync_state.last_collected_to, EXCLUDED.last_collected_to),
-            EXCLUDED.last_collected_to),
-        backfilled_from = LEAST(
-            COALESCE(account_sync_state.backfilled_from, EXCLUDED.backfilled_from),
-            EXCLUDED.backfilled_from),
-        updated_at = now()
-    """
-)
+async def _sync_entities(client, no: int, amn: int, levels: list[str]) -> None:
+    """엔티티 이름 동기화(주 1회). 실패해도 성과 수집은 계속한다."""
+    for level in levels:
+        try:
+            items = await fetch_entities(client, no, level, amn, page_delay=_RATE_DELAY)
+        except Exception as e:  # noqa: BLE001
+            _log_error(no, f"entities/{level}: {e}")
+            continue
+        if not items:
+            continue
+        with account_scoped_connection([no]) as conn:
+            for it in items:
+                conn.execute(
+                    _UPSERT_ENTITY,
+                    {
+                        "naver_account_no": no,
+                        "level": level,
+                        "entity_no": it["entity_no"],
+                        "name": it["name"],
+                    },
+                )
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE account_sync_state SET entities_synced_at = now() "
+                "WHERE naver_account_no = :no"
+            ),
+            {"no": no},
+        )
 
 
 async def sync_reports(days: int = 7, backfill_days: int = 90) -> int:
-    """활성 키에 스코프된 광고계정의 캠페인 성과(일별)를 적재.
-
-    - 대상: 활성 키가 참조하는 계정만(전체 2110이 아님) → 한도·시간 절약.
-    - **신규 계정 자동 백필**: 수집 이력이 없으면 backfill_days 만큼 소급 수집.
-    - **갭 자동 복구**: 마지막 수집일이 오래됐으면 그 지점부터 다시 수집.
-    - 31일 초과 구간은 청크로 분할 호출(네이버 제약).
-    - 네이버 한도(관리계정 60회/분) 준수: 호출마다 _RATE_DELAY 대기.
-    """
-    import asyncio
-
+    """활성 키에 담긴 계정의 성과를 계정별 세밀도에 맞춰 적재."""
     end = date.today() - timedelta(days=1)  # 전일까지
     floor = end - timedelta(days=max(backfill_days - 1, 0))  # 소급 상한
 
@@ -131,7 +203,9 @@ async def sync_reports(days: int = 7, backfill_days: int = 90) -> int:
                 text(
                     """
                     SELECT DISTINCT ka.naver_account_no, na.manager_account_no,
-                           s.last_collected_to, s.backfilled_from
+                           COALESCE(na.granularity, 'campaign')  AS granularity,
+                           COALESCE(na.collect_conversions,false) AS collect_conversions,
+                           s.last_collected_to, s.backfilled_from, s.entities_synced_at
                       FROM key_accounts ka
                       JOIN api_keys k ON k.id = ka.api_key_id AND k.status = 'active'
                       LEFT JOIN naver_accounts na ON na.naver_account_no = ka.naver_account_no
@@ -148,56 +222,75 @@ async def sync_reports(days: int = 7, backfill_days: int = 90) -> int:
             amn = acc.get("manager_account_no") or settings.naver_manager_account_no
             last_to = acc.get("last_collected_to")
             filled_from = acc.get("backfilled_from")
+            levels = GRANULARITY_LEVELS.get(acc.get("granularity") or "campaign", ["campaign"])
 
             if last_to is None or filled_from is None or filled_from > floor:
-                # 신규 계정 또는 소급 미완료 → 백필 구간 전체 수집(1회)
-                start = floor
+                start = floor  # 신규 계정 또는 소급 미완료 → 백필 구간 전체
             else:
-                # 최소 days일 재수집(정산 보정) + 마지막 수집 이후 갭 복구
                 start = min(end - timedelta(days=max(days - 1, 0)),
                             last_to - timedelta(days=2))
             start = max(start, floor)
             if start > end:
                 continue
 
-            acc_rows = 0
             failed = False
-            for c_start, c_end in _date_chunks(start, end):
-                try:
-                    rows = await fetch_campaign_performance(
-                        client, no, c_start, c_end, amn, page_delay=_RATE_DELAY
-                    )
-                except Exception as e:  # noqa: BLE001
-                    failed = True
-                    with engine.begin() as conn:
-                        conn.execute(
-                            text(
-                                "INSERT INTO collector_runs (job, naver_account_no, started_at, "
-                                "finished_at, status, error) VALUES "
-                                "('reports', :no, now(), now(), 'error', :err)"
-                            ),
-                            {"no": no, "err": f"{c_start}~{c_end}: {e}"[:500]},
+            for level in levels:
+                for c_start, c_end in _date_chunks(start, end):
+                    try:
+                        rows = await fetch_performance(
+                            client, no, level, c_start, c_end, amn, page_delay=_RATE_DELAY
                         )
-                    await asyncio.sleep(_RATE_DELAY)
+                    except Exception as e:  # noqa: BLE001
+                        failed = True
+                        _log_error(no, f"perf/{level} {c_start}~{c_end}: {e}")
+                        await asyncio.sleep(_RATE_DELAY)
+                        break
+                    facts = [
+                        to_fact(r, no, level)
+                        for r in rows
+                        if r.get("targetDate") and r.get("campaignNo")
+                    ]
+                    if facts:
+                        with account_scoped_connection([no]) as conn:
+                            for f in facts:
+                                conn.execute(_UPSERT_FACT, f)
+                        total += len(facts)
+                if failed:
                     break
 
-                facts = [
-                    to_fact(r, no, None)
-                    for r in rows
-                    if r.get("targetDate") and r.get("campaignNo")
-                ]
-                if facts:
-                    with account_scoped_connection([no]) as conn:
-                        for f in facts:
-                            f.pop("advertiser_id", None)
-                            conn.execute(_UPSERT_FACT, f)
-                    acc_rows += len(facts)
+            # 전환 타입 breakdown(옵션)
+            if not failed and acc.get("collect_conversions"):
+                for level in levels:
+                    for c_start, c_end in _date_chunks(start, end):
+                        try:
+                            rows = await fetch_conversion(
+                                client, no, level, c_start, c_end, amn, page_delay=_RATE_DELAY
+                            )
+                        except Exception as e:  # noqa: BLE001
+                            _log_error(no, f"conv/{level} {c_start}~{c_end}: {e}")
+                            await asyncio.sleep(_RATE_DELAY)
+                            break
+                        cfacts = [
+                            to_conversion_fact(r, no, level)
+                            for r in rows
+                            if r.get("targetDate") and r.get("campaignNo")
+                        ]
+                        if cfacts:
+                            with account_scoped_connection([no]) as conn:
+                                for f in cfacts:
+                                    conn.execute(_UPSERT_CONV, f)
 
             if not failed:
-                # 성과 0건이어도 "그 기간은 수집했다"는 사실을 기록해야 재수집 폭주를 막는다
                 with engine.begin() as conn:
                     conn.execute(_UPSERT_STATE, {"no": no, "start": start, "end": end})
-            total += acc_rows
+
+                # 엔티티 이름: 미동기화이거나 TTL 경과 시에만
+                synced = acc.get("entities_synced_at")
+                stale = synced is None or (
+                    (date.today() - synced.date()).days >= _ENTITY_TTL_DAYS
+                )
+                if stale:
+                    await _sync_entities(client, no, amn, levels)
 
     with engine.begin() as conn:
         conn.execute(
@@ -226,7 +319,7 @@ def main() -> None:
         print(f"발견·등록된 광고계정: {len(accounts)}개")
         for a in accounts[:20]:
             print(f"  - {a['naver_account_no']}  {a.get('account_name') or ''}")
-        print("\n(운영자: tools.issue_key 로 광고주에 배정하세요)")
+        print("\n(운영자: 콘솔에서 키 관리 그룹에 계정을 담으세요)")
 
 
 if __name__ == "__main__":

@@ -114,6 +114,8 @@ HTML_PAGE = r"""<!doctype html>
   .adv-item .nm{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .adv-item.active .nm{color:var(--accent-ink)}
   .adv-item .meta{font-size:11.5px;color:var(--faint);white-space:nowrap;flex:none;display:inline-flex;align-items:center;gap:6px}
+  .gsel{padding:4px 6px;border:1px solid var(--line);border-radius:7px;background:var(--panel2);
+    color:var(--ink);font-family:inherit;font-size:12px}
   .keydel{border:0;background:transparent;color:var(--faint);font-size:16px;line-height:1;cursor:pointer;
     padding:0 2px;border-radius:5px;opacity:0;transition:.12s}
   .adv-item:hover .keydel{opacity:1}
@@ -342,11 +344,15 @@ HTML_PAGE = r"""<!doctype html>
       </div>
 
       <div class="sec">
-        <div class="sec-h"><h3>이 키의 광고계정</h3></div>
+        <div class="sec-h"><h3>이 키의 광고계정</h3><span class="count">수집 세밀도 · 전환</span></div>
         <div class="tblwrap"><table>
-          <thead><tr><th>번호</th><th>이름</th><th>팀</th><th></th></tr></thead>
+          <thead><tr><th>번호</th><th>이름</th><th>수집 세밀도</th><th>전환상세</th><th></th></tr></thead>
           <tbody id="scopeBody"></tbody>
         </table></div>
+        <div class="hint" style="font-size:11.5px;color:var(--faint);margin-top:8px">
+          세밀도를 올리면 다음 수집에서 해당 레벨을 <b>90일 소급 백필</b>합니다(계정 1개 기준 약 1분).
+          기본 <b>캠페인</b>이며, 광고주가 광고그룹·소재 단위를 요청할 때만 올리세요(호출량·저장량 증가).
+        </div>
       </div>
 
       <div class="sec">
@@ -539,6 +545,7 @@ GET https://naver-gfa.vercel.app/v1/reports?date_from=2026-06-01&amp;date_to=202
 let TOKEN = sessionStorage.getItem("adminToken") || "";
 let CUR = null;      // 선택된 키 {id,label}
 let KEYS = [];
+let CURDET = null;   // 선택된 키 상세(계정별 세밀도 참조용)
 document.getElementById("token").value = TOKEN;
 
 function toast(msg, type){ const t=document.getElementById("toast"); t.textContent=msg;
@@ -602,6 +609,7 @@ async function selectKey(id){
 }
 async function loadKeyDetail(){
   const d=await api("GET",`/admin/api/keys/${CUR.id}`);
+  CURDET=d;
   CUR.label=d.label; CUR.status=d.status;
   document.getElementById("keyTitle").textContent=d.label;
   document.getElementById("keyPrefix").textContent=d.key_prefix?d.key_prefix+"…":"";
@@ -609,12 +617,17 @@ async function loadKeyDetail(){
     `<span class="pill ${d.status==='revoked'?'revoked':'active'}">${d.status}</span>`;
   document.getElementById("tileAccounts").textContent=d.accounts.length;
   document.getElementById("revokeBtn").style.display = d.status==='active'?'':'none';
+  const gopt=(v,cur)=>`<option value="${v}" ${cur===v?'selected':''}>${{campaign:'캠페인',adset:'광고그룹',creative:'소재'}[v]}</option>`;
   document.getElementById("scopeBody").innerHTML = d.accounts.map(a=>
     `<tr><td class="num">${a.naver_account_no}</td>
      <td class="name">${esc(a.account_name)||'<span style="color:var(--faint)">(미보강)</span>'}</td>
-     <td style="color:var(--muted)">${esc(a.manager_account_name)||'—'}</td>
+     <td><select class="gsel" onchange="setGran(${a.naver_account_no}, this.value, null)">
+         ${gopt('campaign',a.granularity)}${gopt('adset',a.granularity)}${gopt('creative',a.granularity)}
+       </select></td>
+     <td><input type="checkbox" ${a.collect_conversions?'checked':''}
+         onchange="setGran(${a.naver_account_no}, null, this.checked)" title="전환 타입별 상세 수집"></td>
      <td style="text-align:right"><button class="btn btn-danger btn-sm" onclick="removeAccount(${a.naver_account_no})">제거</button></td></tr>`).join("")
-    || `<tr><td colspan="4" class="cell-empty">담긴 계정이 없습니다. 아래에서 검색·추가하세요.</td></tr>`;
+    || `<tr><td colspan="5" class="cell-empty">담긴 계정이 없습니다. 아래에서 검색·추가하세요.</td></tr>`;
 }
 let SR=[];
 async function searchAccounts(){
@@ -633,6 +646,16 @@ async function addAccount(no){ await api("POST",`/admin/api/keys/${CUR.id}/accou
   loadKeyDetail(); searchAccounts(); loadKeys(); toast("계정 추가됨"); }
 async function removeAccount(no){ await api("DELETE",`/admin/api/keys/${CUR.id}/accounts/${no}`);
   loadKeyDetail(); loadKeys(); toast("계정 제거됨"); }
+async function setGran(no, gran, conv){
+  const cur=(CURDET&&CURDET.accounts||[]).find(a=>a.naver_account_no===no)||{};
+  const body={ granularity: gran ?? (cur.granularity||'campaign'),
+               collect_conversions: conv ?? !!cur.collect_conversions };
+  try{
+    const r=await api("PATCH",`/admin/api/accounts/${no}/granularity`, body);
+    toast(r.backfill_queued ? "설정 저장 · 다음 수집에서 소급 백필됩니다" : "설정 저장됨");
+    loadKeyDetail();
+  }catch(e){ alert(errDetail(e)); loadKeyDetail(); }
+}
 async function quickKey(no){
   const acc=SR.find(x=>x.naver_account_no===no)||{};
   const label=(acc.account_name||"").trim()||("계정 "+no);
