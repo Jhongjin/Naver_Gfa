@@ -75,6 +75,14 @@ CREATE TABLE IF NOT EXISTS api_audit_logs (
 );
 CREATE INDEX IF NOT EXISTS ix_audit_key_ts ON api_audit_logs(api_key_id, ts);
 
+-- ── 계정별 수집 상태 (백필 · 갭 복구용) ──
+CREATE TABLE IF NOT EXISTS account_sync_state (
+  naver_account_no   BIGINT PRIMARY KEY,
+  backfilled_from    DATE,          -- 이 날짜까지 소급 수집 완료
+  last_collected_to  DATE,          -- 마지막으로 수집한 종료일
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ── 수집 실행 관측 ──
 CREATE TABLE IF NOT EXISTS collector_runs (
   id                BIGSERIAL PRIMARY KEY,

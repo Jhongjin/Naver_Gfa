@@ -91,9 +91,12 @@ GET https://naver-gfa.vercel.app/v1/reports?date_from=2026-06-01&date_to=2026-06
 | clicks | 클릭 수 |
 | cost | 광고비(원) |
 | conversions | 전환 수 |
-| data_freshness | 데이터 마지막 갱신 시각 |
+| conv_value | 전환매출 (ROAS = conv_value / cost) |
+| data_through | 데이터가 존재하는 최신 일자 |
+| last_synced_at | 마지막 수집 반영 시각 (data_freshness 는 동일값 별칭) |
 
 > 데이터는 전일까지, 매일 새벽 갱신. 조회는 한 번에 최대 31일.
+> 신규 계정을 키에 담으면 다음 수집 때 최근 90일이 자동 소급 수집됩니다(누락 구간도 자동 복구).
 
 ## 05. 꼭 알아둘 점
 

@@ -85,17 +85,44 @@ async def sync_accounts() -> list[dict]:
     return accounts
 
 
-async def sync_reports(days: int = 7) -> int:
+def _date_chunks(start: date, end: date, size: int = 31):
+    """네이버 성과 API는 한 번에 최대 31일 → 기간을 청크로 분할."""
+    cur = start
+    while cur <= end:
+        stop = min(cur + timedelta(days=size - 1), end)
+        yield cur, stop
+        cur = stop + timedelta(days=1)
+
+
+_UPSERT_STATE = text(
+    """
+    INSERT INTO account_sync_state (naver_account_no, backfilled_from, last_collected_to, updated_at)
+    VALUES (:no, :start, :end, now())
+    ON CONFLICT (naver_account_no) DO UPDATE SET
+        last_collected_to = GREATEST(
+            COALESCE(account_sync_state.last_collected_to, EXCLUDED.last_collected_to),
+            EXCLUDED.last_collected_to),
+        backfilled_from = LEAST(
+            COALESCE(account_sync_state.backfilled_from, EXCLUDED.backfilled_from),
+            EXCLUDED.backfilled_from),
+        updated_at = now()
+    """
+)
+
+
+async def sync_reports(days: int = 7, backfill_days: int = 90) -> int:
     """활성 키에 스코프된 광고계정의 캠페인 성과(일별)를 적재.
 
     - 대상: 활성 키가 참조하는 계정만(전체 2110이 아님) → 한도·시간 절약.
+    - **신규 계정 자동 백필**: 수집 이력이 없으면 backfill_days 만큼 소급 수집.
+    - **갭 자동 복구**: 마지막 수집일이 오래됐으면 그 지점부터 다시 수집.
+    - 31일 초과 구간은 청크로 분할 호출(네이버 제약).
     - 네이버 한도(관리계정 60회/분) 준수: 호출마다 _RATE_DELAY 대기.
-    - RLS: 계정별 app.allowed_accounts 설정 후 upsert.
     """
     import asyncio
 
     end = date.today() - timedelta(days=1)  # 전일까지
-    start = end - timedelta(days=max(days - 1, 0))
+    floor = end - timedelta(days=max(backfill_days - 1, 0))  # 소급 상한
 
     with engine.begin() as conn:
         accounts = [
@@ -103,10 +130,12 @@ async def sync_reports(days: int = 7) -> int:
             for r in conn.execute(
                 text(
                     """
-                    SELECT DISTINCT ka.naver_account_no, na.manager_account_no
+                    SELECT DISTINCT ka.naver_account_no, na.manager_account_no,
+                           s.last_collected_to, s.backfilled_from
                       FROM key_accounts ka
                       JOIN api_keys k ON k.id = ka.api_key_id AND k.status = 'active'
                       LEFT JOIN naver_accounts na ON na.naver_account_no = ka.naver_account_no
+                      LEFT JOIN account_sync_state s ON s.naver_account_no = ka.naver_account_no
                     """
                 )
             ).mappings()
@@ -117,34 +146,58 @@ async def sync_reports(days: int = 7) -> int:
         for acc in accounts:
             no = acc["naver_account_no"]
             amn = acc.get("manager_account_no") or settings.naver_manager_account_no
-            try:
-                rows = await fetch_campaign_performance(
-                    client, no, start, end, amn, page_delay=_RATE_DELAY
-                )
-            except Exception as e:  # noqa: BLE001
-                with engine.begin() as conn:
-                    conn.execute(
-                        text(
-                            "INSERT INTO collector_runs (job, naver_account_no, started_at, "
-                            "finished_at, status, error) VALUES "
-                            "('reports', :no, now(), now(), 'error', :err)"
-                        ),
-                        {"no": no, "err": str(e)[:500]},
-                    )
-                await asyncio.sleep(_RATE_DELAY)
+            last_to = acc.get("last_collected_to")
+            filled_from = acc.get("backfilled_from")
+
+            if last_to is None or filled_from is None or filled_from > floor:
+                # 신규 계정 또는 소급 미완료 → 백필 구간 전체 수집(1회)
+                start = floor
+            else:
+                # 최소 days일 재수집(정산 보정) + 마지막 수집 이후 갭 복구
+                start = min(end - timedelta(days=max(days - 1, 0)),
+                            last_to - timedelta(days=2))
+            start = max(start, floor)
+            if start > end:
                 continue
 
-            facts = [
-                to_fact(r, no, None)
-                for r in rows
-                if r.get("targetDate") and r.get("campaignNo")
-            ]
-            if facts:
-                with account_scoped_connection([no]) as conn:
-                    for f in facts:
-                        f.pop("advertiser_id", None)
-                        conn.execute(_UPSERT_FACT, f)
-                total += len(facts)
+            acc_rows = 0
+            failed = False
+            for c_start, c_end in _date_chunks(start, end):
+                try:
+                    rows = await fetch_campaign_performance(
+                        client, no, c_start, c_end, amn, page_delay=_RATE_DELAY
+                    )
+                except Exception as e:  # noqa: BLE001
+                    failed = True
+                    with engine.begin() as conn:
+                        conn.execute(
+                            text(
+                                "INSERT INTO collector_runs (job, naver_account_no, started_at, "
+                                "finished_at, status, error) VALUES "
+                                "('reports', :no, now(), now(), 'error', :err)"
+                            ),
+                            {"no": no, "err": f"{c_start}~{c_end}: {e}"[:500]},
+                        )
+                    await asyncio.sleep(_RATE_DELAY)
+                    break
+
+                facts = [
+                    to_fact(r, no, None)
+                    for r in rows
+                    if r.get("targetDate") and r.get("campaignNo")
+                ]
+                if facts:
+                    with account_scoped_connection([no]) as conn:
+                        for f in facts:
+                            f.pop("advertiser_id", None)
+                            conn.execute(_UPSERT_FACT, f)
+                    acc_rows += len(facts)
+
+            if not failed:
+                # 성과 0건이어도 "그 기간은 수집했다"는 사실을 기록해야 재수집 폭주를 막는다
+                with engine.begin() as conn:
+                    conn.execute(_UPSERT_STATE, {"no": no, "start": start, "end": end})
+            total += acc_rows
 
     with engine.begin() as conn:
         conn.execute(
@@ -160,11 +213,13 @@ async def sync_reports(days: int = 7) -> int:
 def main() -> None:
     p = argparse.ArgumentParser(description="네이버 GFA 수집 배치")
     p.add_argument("--reports", action="store_true", help="성과 수집(미지정 시 계정 트리 동기화)")
-    p.add_argument("--days", type=int, default=7, help="성과 조회 일수(최대 31)")
+    p.add_argument("--days", type=int, default=7, help="정기 재수집 일수(정산 보정용, 최대 31)")
+    p.add_argument("--backfill-days", type=int, default=90,
+                   help="신규 계정 소급 수집 일수(기본 90, 네이버 상한 2년)")
     args = p.parse_args()
 
     if args.reports:
-        n = asyncio.run(sync_reports(min(args.days, 31)))
+        n = asyncio.run(sync_reports(min(args.days, 31), args.backfill_days))
         print(f"성과 적재 완료: {n}행 upsert")
     else:
         accounts = asyncio.run(sync_accounts())

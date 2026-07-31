@@ -33,7 +33,7 @@ def main() -> None:
     with engine.begin() as conn:
         for stmt in statements:
             conn.execute(text(stmt))
-    print(f"적용 완료: {args.file} — {len(statements)}개 문 실행")
+    print(f"적용 완료: {args.file} / {len(statements)}개 문 실행")
 
 
 if __name__ == "__main__":

@@ -72,10 +72,30 @@ def _audit(auth: dict, request: Request, status_code: int, params: dict) -> None
         )
 
 
-def _freshness() -> str | None:
-    with engine.begin() as conn:
-        val = conn.execute(text("SELECT max(updated_at) FROM report_facts")).scalar()
-        return val.isoformat() if val else None
+def _coverage(targets: list[int]) -> dict[str, Any]:
+    """요청 스코프의 실제 데이터 커버리지.
+
+    data_through   : 데이터가 존재하는 최신 일자(= 어디까지 조회 가능한지)
+    last_synced_at : 마지막 수집 반영 시각
+    data_freshness : last_synced_at 과 동일(하위호환용 별칭)
+    """
+    if not targets:
+        return {"data_through": None, "last_synced_at": None, "data_freshness": None}
+    with account_scoped_connection(targets) as conn:
+        row = (
+            conn.execute(
+                text(
+                    "SELECT max(stat_date) AS through, max(updated_at) AS synced "
+                    "FROM report_facts WHERE naver_account_no = ANY(:t)"
+                ),
+                {"t": targets},
+            )
+            .mappings()
+            .first()
+        )
+    through = row["through"].isoformat() if row and row["through"] else None
+    synced = row["synced"].isoformat() if row and row["synced"] else None
+    return {"data_through": through, "last_synced_at": synced, "data_freshness": synced}
 
 
 @app.get("/")
@@ -97,13 +117,20 @@ def list_accounts(request: Request, auth: dict = Depends(authenticate)) -> dict[
     scope = auth["accounts"]
     if not scope:
         _audit(auth, request, 200, {})
-        return {"data": [], "data_freshness": _freshness()}
-    with engine.begin() as conn:
+        return {"data": [], **_coverage([])}
+    # 계정별 data_through 를 함께 제공(그 계정에 데이터가 어디까지 있는지)
+    with account_scoped_connection(scope) as conn:
         rows = (
             conn.execute(
                 text(
-                    "SELECT naver_account_no, account_name FROM naver_accounts "
-                    "WHERE naver_account_no = ANY(:scope) ORDER BY naver_account_no"
+                    """
+                    SELECT n.naver_account_no, n.account_name,
+                           (SELECT max(f.stat_date) FROM report_facts f
+                             WHERE f.naver_account_no = n.naver_account_no) AS data_through
+                      FROM naver_accounts n
+                     WHERE n.naver_account_no = ANY(:scope)
+                     ORDER BY n.naver_account_no
+                    """
                 ),
                 {"scope": scope},
             )
@@ -111,7 +138,7 @@ def list_accounts(request: Request, auth: dict = Depends(authenticate)) -> dict[
             .all()
         )
     _audit(auth, request, 200, {})
-    return {"data": [dict(r) for r in rows], "data_freshness": _freshness()}
+    return {"data": [dict(r) for r in rows], **_coverage(scope)}
 
 
 @app.get("/v1/reports")
@@ -144,7 +171,8 @@ def get_reports(
                            sum(impressions) AS impressions,
                            sum(clicks)      AS clicks,
                            sum(cost)        AS cost,
-                           sum(conversions) AS conversions
+                           sum(conversions) AS conversions,
+                           sum(conv_value)  AS conv_value
                       FROM report_facts
                      WHERE naver_account_no = ANY(:targets)
                        AND stat_date BETWEEN :d1 AND :d2
@@ -158,4 +186,4 @@ def get_reports(
             .all()
         )
     _audit(auth, request, 200, {"account_no": account_no, "from": date_from, "to": date_to})
-    return {"data": [dict(r) for r in rows], "data_freshness": _freshness()}
+    return {"data": [dict(r) for r in rows], **_coverage(targets)}

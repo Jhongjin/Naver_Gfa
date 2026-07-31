@@ -500,7 +500,9 @@ GET https://naver-gfa.vercel.app/v1/reports?date_from=2026-06-01&amp;date_to=202
         <tr><td>clicks</td><td>클릭 수</td></tr>
         <tr><td>cost</td><td>광고비 (원)</td></tr>
         <tr><td>conversions</td><td>전환 수</td></tr>
-        <tr><td>data_freshness</td><td>데이터 마지막 갱신 시각</td></tr>
+        <tr><td>conv_value</td><td>전환매출 (ROAS = conv_value / cost)</td></tr>
+        <tr><td>data_through</td><td>데이터가 존재하는 최신 일자(어디까지 조회 가능한지)</td></tr>
+        <tr><td>last_synced_at</td><td>마지막 수집 반영 시각</td></tr>
       </table>
       <div class="gnote">데이터는 <b>전일까지</b> 제공되며 매일 새벽 갱신됩니다. 조회 기간은 한 번에 최대 31일입니다.</div>
     </div>
