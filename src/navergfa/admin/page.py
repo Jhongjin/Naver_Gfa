@@ -489,7 +489,31 @@ HTML_PAGE = r"""<!doctype html>
     </div>
 
     <div class="gcard">
-      <div class="gk">04 · 광고주 쪽</div>
+      <div class="gk">04 · 수집 세밀도</div>
+      <h2>캠페인 / 광고그룹 / 소재 — 무엇이 다른가</h2>
+      <p>네이버 광고는 <b>3단 계층</b>입니다. 수집 세밀도는 <b>이 계층 중 어디까지 쪼개서 저장할지</b>를 정합니다.
+      숫자가 달라지는 게 아니라, <b>같은 성과를 얼마나 잘게 나눠 볼 수 있는지</b>의 차이입니다.</p>
+      <div class="gpre">광고계정
+ └─ 캠페인      "✔ 초텍 카탈로그"     ← 무엇을 위한 광고인가
+     └─ 광고그룹  "✔ 카탈로그"          ← 누구에게 보여줄 것인가 (타겟팅)
+         └─ 소재   "✔ 초텍"             ← 어떤 배너·문구를 보여줄 것인가</div>
+      <table class="gtbl">
+        <tr><th style="width:110px">선택</th><th>수집 범위</th><th>광고주가 답할 수 있는 질문</th></tr>
+        <tr><td><b>캠페인</b><br><span class="muted">기본값</span></td><td>캠페인</td><td>어떤 캠페인이 잘 나갔나</td></tr>
+        <tr><td><b>광고그룹</b></td><td>캠페인 + 광고그룹</td><td>+ 어떤 타겟팅이 효율이 좋았나</td></tr>
+        <tr><td><b>소재</b></td><td>캠페인 + 광고그룹 + 소재</td><td>+ 어떤 배너·이미지가 클릭이 잘 됐나</td></tr>
+      </table>
+      <p class="muted">사다리식입니다 — 상위를 고르면 하위 레벨까지 함께 수집합니다. 캠페인 단위 합계는 어느 선택에서나 동일합니다.</p>
+      <div class="gnote"><b>켠 직후</b> — 해당 레벨은 과거 데이터가 없으므로 다음 수집에서 <b>90일치를 자동 소급 백필</b>합니다(계정 1개 약 1분).</div>
+      <div class="gnote warn"><b>비용</b> — 소재까지 켜면 그 계정의 네이버 호출이 약 3배, 저장 행수가 10~30배가 됩니다.
+      기본은 캠페인이며, <b>광고주가 실제로 요청할 때만</b> 올리세요.</div>
+      <div class="gnote"><b>전환상세</b> 체크는 세밀도와 별개입니다. 켜면 전환을 타입별(장바구니·구매 등)로 나눠 수집합니다.</div>
+      <div class="gnote warn"><b>참고</b> — ADVoost 같은 자동최적화 캠페인은 네이버가 소재를 자동 운영해
+      <b>광고그룹·소재 단위 분해가 내려오지 않을 수 있습니다.</b> 이 경우 세밀도를 올려도 캠페인 단위까지만 조회됩니다.</div>
+    </div>
+
+    <div class="gcard">
+      <div class="gk">05 · 광고주 쪽</div>
       <h2>광고주가 데이터를 받아가는 법</h2>
       <p class="dim">광고주(또는 그 개발자)에게 발급한 키와 함께 아래 내용을 전달하면 됩니다.</p>
       <div class="gpre"># 공통 — 발급 키를 헤더에
@@ -498,8 +522,15 @@ Authorization: Bearer ngfa_xxxxxxxx.xxxxxxxxxxxx
 # 내 광고계정 목록
 GET https://naver-gfa.vercel.app/v1/accounts
 
-# 캠페인 성과 (account_no 생략 시 배정 전체)
-GET https://naver-gfa.vercel.app/v1/reports?date_from=2026-06-01&amp;date_to=2026-06-30&amp;account_no=4987</div>
+# 성과 리포트 (account_no 생략 시 담긴 전체)
+GET https://naver-gfa.vercel.app/v1/reports?date_from=2026-06-01&amp;date_to=2026-06-30&amp;account_no=4987
+
+# 세밀도 선택: campaign(기본) | adset | creative
+#   ※ 콘솔에서 해당 세밀도를 켠 계정만 데이터가 있습니다(안 켜면 빈 배열)
+GET /v1/reports?date_from=...&amp;date_to=...&amp;level=creative
+
+# 전환 타입별 상세(장바구니·구매 등)  ※ '전환상세'를 켠 계정만
+GET /v1/conversions?date_from=...&amp;date_to=...&amp;level=campaign</div>
       <table class="gtbl">
         <tr><th style="width:170px">응답 필드</th><th>의미</th></tr>
         <tr><td>impressions</td><td>노출 수</td></tr>
@@ -507,6 +538,10 @@ GET https://naver-gfa.vercel.app/v1/reports?date_from=2026-06-01&amp;date_to=202
         <tr><td>cost</td><td>광고비 (원)</td></tr>
         <tr><td>conversions</td><td>전환 수</td></tr>
         <tr><td>conv_value</td><td>전환매출 (ROAS = conv_value / cost)</td></tr>
+        <tr><td>views</td><td>조회수(동영상)</td></tr>
+        <tr><td>level</td><td>이 응답의 집계 단위 (campaign / adset / creative)</td></tr>
+        <tr><td>campaign_name<br>ad_group_name · ad_name</td><td>이름. 하위 레벨 이름은 해당 세밀도로 조회할 때만 채워집니다</td></tr>
+        <tr><td>conv_type</td><td>전환 타입 (/v1/conversions 응답)</td></tr>
         <tr><td>data_through</td><td>데이터가 존재하는 최신 일자(어디까지 조회 가능한지)</td></tr>
         <tr><td>last_synced_at</td><td>마지막 수집 반영 시각</td></tr>
       </table>
@@ -514,7 +549,7 @@ GET https://naver-gfa.vercel.app/v1/reports?date_from=2026-06-01&amp;date_to=202
     </div>
 
     <div class="gcard">
-      <div class="gk">05 · 안전 수칙</div>
+      <div class="gk">06 · 안전 수칙</div>
       <h2>꼭 알아둘 점</h2>
       <div class="gnote danger"><b>네이버 키·관리자 토큰은 외부 공유 절대 금지.</b> 이 둘이 새면 전체 광고주 데이터가 위험합니다.</div>
       <div class="gnote warn"><b>키 발급 전 배정 계정 확인.</b> 한 광고주에 다른 회사 계정이 섞이면 그 회사 데이터가 노출됩니다.</div>
@@ -522,7 +557,7 @@ GET https://naver-gfa.vercel.app/v1/reports?date_from=2026-06-01&amp;date_to=202
     </div>
 
     <div class="gcard">
-      <div class="gk">06 · 문제 해결</div>
+      <div class="gk">07 · 문제 해결</div>
       <h2>자주 묻는 질문</h2>
       <details class="gfaq"><summary>광고주가 “401 unauthorized”가 뜬대요</summary><div class="a">
         키가 잘못됐거나(오타·복사 누락) 이미 폐기된 키입니다. 해당 광고주의 키 상태(active/revoked)를 확인하고 필요하면 새 키를 발급하세요.</div></details>
